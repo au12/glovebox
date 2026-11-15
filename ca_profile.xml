@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<CommunityApplications>
+  <Profile>Glovebox is a self-hosted vehicle maintenance tracker: a redesigned fork of [LubeLogger](https://github.com/hargata/lubelog) focused on upcoming service, with a phone-friendly interface and ntfy reminder notifications. It uses the same data format as LubeLogger, so existing installs can switch over by changing only the image.
+
+For bugs and questions, open an issue on [GitHub](https://github.com/au12/glovebox/issues).</Profile>
+  <Icon>https://raw.githubusercontent.com/au12/glovebox/main/glovebox-icon.png</Icon>
+  <WebPage>https://github.com/au12/glovebox</WebPage>
+</CommunityApplications>

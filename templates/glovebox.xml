@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Glovebox</Name>
+  <Repository>ghcr.io/au12/glovebox:latest</Repository>
+  <Registry>https://github.com/au12/glovebox/pkgs/container/glovebox</Registry>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/au12/glovebox/issues</Support>
+  <Project>https://github.com/au12/glovebox</Project>
+  <ReadMe>https://raw.githubusercontent.com/au12/glovebox/main/README.md</ReadMe>
+  <Overview>Self-hosted vehicle maintenance tracker built around what's due next. Glovebox is a redesigned fork of LubeLogger with a phone-friendly interface: a garage view that flags overdue and upcoming service, a per-vehicle overview with progress through each service interval, rendered markdown notes, an in-app viewer for photos and PDFs, and ntfy push notifications for reminders with an adjustable heads-up before things are due. Cost tracking can be hidden entirely.[br][br]Glovebox reads and writes the same data as LubeLogger. To switch an existing LubeLogger container, keep its path mappings and change only the Repository to ghcr.io/au12/glovebox:latest.</Overview>
+  <Category>Productivity: Tools:Utilities</Category>
+  <ExtraSearchTerms>lubelogger vehicle car maintenance service reminders fuel mileage garage ntfy</ExtraSearchTerms>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/au12/glovebox/main/templates/glovebox.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/au12/glovebox/main/glovebox-icon.png</Icon>
+  <License>MIT</License>
+  <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/desktop-garage-dark.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/desktop-overview-light.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/mobile-overview-dark.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/mobile-note-light.png</Screenshot>
+  <Date>2026-11-15</Date>
+  <Changes>
+### 0.1.0 (2026-11-15)
+- First release: redesigned garage, vehicle overview and mobile layout
+- Rendered markdown notes and in-app attachment viewer
+- ntfy push notifications for reminders with an adjustable heads-up
+- Option to hide cost tracking
+  </Changes>
+  <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Data" Target="/App/data" Default="/mnt/user/appdata/glovebox/data" Mode="rw" Description="Database, photos, attachments, translations and settings. Coming from LubeLogger? Point this at your existing LubeLogger data folder to keep everything." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/glovebox/data</Config>
+  <Config Name="Sign-in keys" Target="/root/.aspnet/DataProtection-Keys" Default="/mnt/user/appdata/glovebox/keys" Mode="rw" Description="Encryption keys for sign-in cookies. Coming from LubeLogger? Reuse its keys folder so everyone stays signed in." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/glovebox/keys</Config>
+  <Config Name="LANG" Target="LANG" Default="en_US.UTF-8" Mode="" Description="Locale for dates, numbers and currency, for example en_US.UTF-8 or en_GB.UTF-8." Type="Variable" Display="always" Required="false" Mask="false">en_US.UTF-8</Config>
+  <Config Name="LC_ALL" Target="LC_ALL" Default="en_US.UTF-8" Mode="" Description="Should match LANG." Type="Variable" Display="always" Required="false" Mask="false">en_US.UTF-8</Config>
+  <Config Name="Server URL" Target="LUBELOGGER_DOMAIN" Default="" Mode="" Description="Optional. The address you use to reach Glovebox, for example https://glovebox.example.com. Used for links in emails and notifications." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Disable account registration" Target="DisableRegistration" Default="false|true" Mode="" Description="Set to true to remove the Create account page entirely. By default new accounts need an invitation token from an admin." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>
