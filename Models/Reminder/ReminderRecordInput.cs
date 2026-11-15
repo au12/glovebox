@@ -1,4 +1,4 @@
-﻿namespace CarCareTracker.Models
+namespace CarCareTracker.Models
 {
     public class ReminderRecordInput
     {
@@ -19,6 +19,10 @@
         public ReminderMonthInterval ReminderMonthInterval { get; set; } = ReminderMonthInterval.OneYear;
         public ReminderMetric Metric { get; set; } = ReminderMetric.Date;
         public List<string> Tags { get; set; } = new List<string>();
+        public ReminderEarlyNotice EarlyNotice { get; set; } = ReminderEarlyNotice.Default;
+        public int EarlyNoticeDistance { get; set; } = 0;
+        public int EarlyNoticeDays { get; set; } = 0;
+        public bool MuteNotifications { get; set; } = false;
         public ReminderRecord ToReminderRecord()
         {
             return new ReminderRecord
@@ -39,7 +43,11 @@
                 CustomMonthInterval = CustomMonthInterval,
                 CustomMonthIntervalUnit = CustomMonthIntervalUnit,
                 Notes = Notes,
-                Tags = Tags
+                Tags = Tags,
+                EarlyNotice = EarlyNotice,
+                EarlyNoticeDistance = Math.Max(0, EarlyNoticeDistance),
+                EarlyNoticeDays = Math.Max(0, EarlyNoticeDays),
+                MuteNotifications = MuteNotifications
             };
         }
         public bool CreatedFromRecord { get; set; } = false;

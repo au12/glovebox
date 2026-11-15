@@ -43,6 +43,7 @@ namespace CarCareTracker.Controllers
         private readonly IVehicleLogic _vehicleLogic;
         private readonly IEventLogic _eventLogic;
         private readonly IExtraFieldDataAccess _extraFieldDataAccess;
+        private readonly IGloveboxHelper _gloveboxHelper;
 
         public VehicleController(ILogger<VehicleController> logger,
             IFileHelper fileHelper,
@@ -72,7 +73,8 @@ namespace CarCareTracker.Controllers
             IConfigHelper config,
             IInspectionRecordDataAccess inspectionRecordDataAccess,
             IInspectionRecordTemplateDataAccess inspectionRecordTemplateDataAccess,
-            IEquipmentRecordDataAccess equipmentRecordDataAccess)
+            IEquipmentRecordDataAccess equipmentRecordDataAccess,
+            IGloveboxHelper gloveboxHelper)
         {
             _logger = logger;
             _dataAccess = dataAccess;
@@ -103,6 +105,7 @@ namespace CarCareTracker.Controllers
             _eventLogic = eventLogic;
             _webEnv = webEnv;
             _config = config; 
+            _gloveboxHelper = gloveboxHelper;
         }
         private int GetUserID()
         {

@@ -1,4 +1,4 @@
-﻿using CarCareTracker.Helper;
+using CarCareTracker.Helper;
 using CarCareTracker.Models;
 using Microsoft.AspNetCore.SignalR;
 
@@ -12,19 +12,23 @@ namespace CarCareTracker.Logic
     {
         private readonly IConfigHelper _config;
         INotificationLogic _notificationLogic;
+        private readonly INtfyNotificationLogic _ntfyLogic;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<EventLogic> _logger;
         private readonly IHubContext<EventHubLogic, IEventHubLogic> _eventHub;
-        public EventLogic(IConfigHelper config, IHttpClientFactory httpClientFactory, IHubContext<EventHubLogic, IEventHubLogic> eventHub, INotificationLogic notificationLogic, ILogger<EventLogic> logger)
+        public EventLogic(IConfigHelper config, IHttpClientFactory httpClientFactory, IHubContext<EventHubLogic, IEventHubLogic> eventHub, INotificationLogic notificationLogic, INtfyNotificationLogic ntfyLogic, ILogger<EventLogic> logger)
         {
             _config = config;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _eventHub = eventHub;
             _notificationLogic = notificationLogic;
+            _ntfyLogic = ntfyLogic;
         }
         public async void PublishEvent(int userId, WebHookPayload webHookPayload)
         {
+            //ntfy: re-evaluate reminders shortly (debounced in the background worker)
+            _ntfyLogic.RequestCheck();
             //signalr
             if (_config.GetWebSocketEnabled())
             {

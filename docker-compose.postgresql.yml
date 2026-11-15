@@ -13,7 +13,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
 
   app:
-    image: ghcr.io/hargata/lubelogger:latest
+    image: ghcr.io/au12/glovebox:latest
     restart: unless-stopped
     environment:
       POSTGRES_CONNECTION: "Host=postgres:5432;Username=lubelogger;Password=lubepass;Database=lubelogger;"

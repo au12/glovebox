@@ -1,0 +1,19 @@
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@{
+    var userLanguage = config.GetUserConfig(User).UserLanguage;
+    var title = ViewData["AppBarTitle"] as string ?? ViewData["Title"] as string ?? string.Empty;
+}
+<header class="gb-appbar hideOnPrint">
+    <partial name="_Brand" />
+    @if (!string.IsNullOrWhiteSpace(title))
+    {
+        <span class="gb-divider-v"></span>
+        <div class="gb-appbar-title"><strong>@translator.Translate(userLanguage, title)</strong></div>
+    }
+    <div class="gb-appbar-actions">
+        <a class="gb-navlink" href="/Home"><i class="bi bi-arrow-left"></i><span class="gb-hide-sm">@translator.Translate(userLanguage, "Back to garage")</span></a>
+        <partial name="_UserMenu" />
+    </div>
+</header>

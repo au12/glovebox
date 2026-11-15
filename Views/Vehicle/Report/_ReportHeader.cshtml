@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @{
@@ -6,19 +6,28 @@
     var userLanguage = userConfig.UserLanguage;
 }
 @model ReportHeader
-<div class="col-md-3 col-12 mt-2 text-center text-truncate">
-    <span class="lead">@Model.MaxOdometer.ToString("N0")</span><br />
-    <span class="text-secondary">@translator.Translate(userLanguage, "Last Reported Odometer Reading")</span>
+@{
+    //"16.731 mpg" reads better as "16.7 mpg" in a summary tile
+    var fuelEconomy = Model.AverageMPG ?? string.Empty;
+    var fuelParts = fuelEconomy.Trim().Split(' ', 2);
+    if (fuelParts.Length == 2 && decimal.TryParse(fuelParts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.CurrentCulture, out var fuelValue))
+    {
+        fuelEconomy = fuelValue == 0 ? string.Empty : $"{fuelValue.ToString("N1")} {fuelParts[1]}";
+    }
+}
+<div class="gb-report-stat">
+    <strong>@Model.MaxOdometer.ToString("N0")</strong>
+    <span>@translator.Translate(userLanguage, "Last odometer reading")</span>
 </div>
-<div class="col-md-3 col-12 mt-2 text-center text-truncate">
-    <span class="lead">@Model.DistanceTraveled.ToString("N0")</span><br />
-    <span class="text-secondary">@translator.Translate(userLanguage, "Distance Traveled")</span>
+<div class="gb-report-stat">
+    <strong>@Model.DistanceTraveled.ToString("N0")</strong>
+    <span>@translator.Translate(userLanguage, "Distance traveled")</span>
 </div>
-<div class="col-md-3 col-12 mt-2 text-center text-truncate">
-    <span class="lead">@StaticHelper.HideZeroCost(Model.TotalCost.ToString("C2"), true)</span><br />
-    <span class="text-secondary">@translator.Translate(userLanguage, "Total Cost")</span>
+<div class="gb-report-stat">
+    <strong>@(string.IsNullOrWhiteSpace(fuelEconomy) ? "---" : fuelEconomy)</strong>
+    <span>@translator.Translate(userLanguage, "Average fuel economy")</span>
 </div>
-<div class="col-md-3 col-12 mt-2 text-center text-truncate">
-    <span class="lead">@Model.AverageMPG</span><br />
-    <span class="text-secondary">@translator.Translate(userLanguage, "Average Fuel Economy")</span>
+<div class="gb-report-stat gb-cost-only">
+    <strong>@StaticHelper.HideZeroCost(Model.TotalCost.ToString("C2"), true)</strong>
+    <span>@translator.Translate(userLanguage, "Total cost")</span>
 </div>

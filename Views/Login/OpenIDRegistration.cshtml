@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @{
@@ -7,63 +7,55 @@
 }
 @model OpenIDRegistrationModel
 @{
-    ViewData["Title"] = "Register";
+    ViewData["Title"] = "Create an account";
+    ViewData["FullBleed"] = true;
 }
 @section Scripts {
-    <script src="~/js/login.js?v=@StaticHelper.VersionNumber"></script>
+    <script src="~/js/login.js?v=@StaticHelper.AssetVersion"></script>
 }
 @if (Model.RegistrationDisabled)
 {
-    <div class="no-top-pad d-flex align-items-center justify-content-center" style="height:100dvh;">
-        <div class="flex-column d-flex">
-            <span class="display-1">@translator.Translate(userLanguage, "Access Denied")</span>
-            <hr />
-            <div class="d-flex justify-content-center">
-                <a href="/Login/Index" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-left me-2"></i>@translator.Translate(userLanguage, "Back to Login")</a>
+    <div class="gb-auth">
+        <div class="gb-auth-card">
+            <partial name="_Brand" />
+            <h1>@translator.Translate(userLanguage, "Access denied")</h1>
+            <p class="gb-auth-sub">@translator.Translate(userLanguage, "This account isn't allowed to register here. Ask your administrator for access.")</p>
+            <div class="gb-auth-links">
+                <a href="/Login/Index"><i class="bi bi-arrow-left me-1"></i>@translator.Translate(userLanguage, "Back to sign in")</a>
+                @if (!string.IsNullOrWhiteSpace(Model.LogOutUrl))
+                {
+                    <a href="@Model.LogOutUrl">@translator.Translate(userLanguage, "Sign out")</a>
+                }
             </div>
-            @if (!string.IsNullOrWhiteSpace(Model.LogOutUrl))
-            {
-                <div class="d-flex justify-content-center mt-3">
-                    <a href="@Model.LogOutUrl" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-right me-2"></i>@translator.Translate(userLanguage, "Logout")</a>
-                </div>
-            }
         </div>
     </div>
-} 
+}
 else
 {
-    <div class="no-top-pad container d-flex align-items-center justify-content-center" style="height:100dvh">
-        <div class="border rounded shadow p-5">
-            <div style="max-width:204px;">
-                <img src="@config.GetLogoUrl()" class="lubelogger-logo" />
-                <div class="form-group">
-                    <label for="inputToken" class="@(string.IsNullOrWhiteSpace(Model.Token) ? "" : "d-none")">@translator.Translate(userLanguage, "Token")</label>
-                    @if (openRegistrationEnabled && string.IsNullOrWhiteSpace(Model.Token))
-                    {
-                        <div class="input-group">
-                            <input type="text" id="inputToken" class="form-control">
-                            <div class="input-group-text">
-                                <button type="button" class="btn btn-sm text-secondary password-visible-button" onclick="sendOpenIdRegistrationToken()"><i class="bi bi-send"></i></button>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <input type="text" id="inputToken" class="form-control @(string.IsNullOrWhiteSpace(Model.Token) ? "" : "d-none")" value="@Model.Token">
-                    }
+    <div class="gb-auth">
+        <form class="gb-auth-card" onsubmit="performOpenIdRegistration(); return false;">
+            <partial name="_Brand" />
+            <h1>@translator.Translate(userLanguage, "Create an account")</h1>
+            <p class="gb-auth-sub">@translator.Translate(userLanguage, "Choose the username you'll use in Glovebox.")</p>
+            <label for="inputToken" class="@(string.IsNullOrWhiteSpace(Model.Token) ? "" : "d-none")">@translator.Translate(userLanguage, "Token")</label>
+            @if (openRegistrationEnabled && string.IsNullOrWhiteSpace(Model.Token))
+            {
+                <div class="input-group input-group-lg">
+                    <input type="text" id="inputToken" class="form-control" autocomplete="one-time-code" spellcheck="false">
+                    <button type="button" class="btn btn-secondary" onclick="sendOpenIdRegistrationToken()"><i class="bi bi-send"></i>@translator.Translate(userLanguage, "Send")</button>
                 </div>
-                <div class="form-group">
-                    <label for="inputUserName">@translator.Translate(userLanguage, "Username")</label>
-                    <input type="text" id="inputUserName" class="form-control" value="@Model.EmailAddress" onkeyup="callBackOnEnter(event, performOpenIdRegistration)">
-                </div>
-                <div class="d-grid">
-                    <button type="button" class="btn btn-warning mt-2" onclick="performOpenIdRegistration()"><i class="bi bi-box-arrow-in-right me-2"></i>@translator.Translate(userLanguage, "Register")</button>
-                </div>
-                <div class="d-grid">
-                    <a href="/Login/Index" class="btn btn-link mt-2">@translator.Translate(userLanguage, "Back to Login")</a>
-                </div>
+            }
+            else
+            {
+                <input type="text" id="inputToken" class="form-control form-control-lg @(string.IsNullOrWhiteSpace(Model.Token) ? "" : "d-none")" value="@Model.Token" spellcheck="false">
+            }
+            <label for="inputUserName">@translator.Translate(userLanguage, "Username")</label>
+            <input type="text" id="inputUserName" class="form-control form-control-lg" value="@Model.EmailAddress" autocomplete="username" autocapitalize="none" spellcheck="false">
+            <button type="submit" class="btn btn-primary btn-lg mt-4">@translator.Translate(userLanguage, "Create account")</button>
+            <div class="gb-auth-links">
+                <a href="/Login/Index"><i class="bi bi-arrow-left me-1"></i>@translator.Translate(userLanguage, "Back to sign in")</a>
             </div>
-        </div>
+        </form>
     </div>
     <script>
         function performOpenIdRegistration() {

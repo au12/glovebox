@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @{
@@ -54,6 +54,8 @@
                         {
                             label: decodeHTMLEntities('@translator.Translate(userLanguage, "Expenses by Type")'),
                             backgroundColor: ["#003f5c", "#58508d", "#bc5090", "#ffa600", "#ff6361" ],
+                            borderColor: gbCssVar('--gb-surface'),
+                            borderWidth: 2,
                             data: chartData.data
                         }
                     ]
@@ -71,13 +73,11 @@
                         legend: {
                             position: "bottom",
                             labels: {
-                                color: useDarkMode ? "#fff" : "#000"
+                                color: gbChartInk()
                             }
                         },
                         title: {
-                            display: true,
-                            text: decodeHTMLEntities('@translator.Translate(userLanguage, "Expenses by Type")'),
-                            color: useDarkMode ? "#fff" : "#000"
+                            display: false
                         },
                     }
                 }
@@ -87,7 +87,5 @@
 }
 else
 {
-    <div class="text-center">
-        <h4>@translator.Translate(userLanguage, "No data found or all records have zero sums, insert records with non-zero sums to see visualizations here.")</h4>
-    </div>
+    <div class="gb-chart-empty">@translator.Translate(userLanguage, "No costs recorded for this period.")</div>
 }

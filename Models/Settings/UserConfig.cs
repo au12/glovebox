@@ -1,4 +1,4 @@
-﻿namespace CarCareTracker.Models
+namespace CarCareTracker.Models
 {
     public class UserConfig
     {
@@ -30,6 +30,15 @@
         public bool EnablePersistentDialog { get; set; }
         public bool UseGridInMobile { get; set; }
         public bool EnableNotesColumnWrap { get; set; }
+        /// <summary>
+        /// Glovebox: hide every cost field, column, total and chart across the app.
+        /// Stored values are kept untouched.
+        /// </summary>
+        public bool HideCostTracking { get; set; }
+        /// <summary>
+        /// Glovebox: ntfy push notifications for reminders.
+        /// </summary>
+        public NtfyConfig Ntfy { get; set; } = new NtfyConfig();
         public List<UserColumnPreference> UserColumnPreferences { get; set; } = new List<UserColumnPreference>();
         public string UserNameHash { get; set; } = string.Empty;
         public string UserPasswordHash { get; set; } = string.Empty;

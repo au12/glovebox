@@ -1,0 +1,17 @@
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@{
+    var logoUrl = config.GetSmallLogoUrl();
+    var customLogo = !string.IsNullOrWhiteSpace(logoUrl) && logoUrl != StaticHelper.DefaultSmallLogoPath;
+}
+<a class="gb-brand" href="/Home" aria-label="Glovebox garage">
+    @if (customLogo)
+    {
+        <img class="gb-brand-custom" src="@logoUrl" alt="" />
+    }
+    else
+    {
+        <partial name="_BrandMark" />
+        <span class="gb-brand-word @(ViewData["BrandWordClass"] ?? "")">Glovebox</span>
+    }
+</a>

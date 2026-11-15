@@ -1,0 +1,31 @@
+@using CarCareTracker.Helper
+@model UploadedFiles
+@{
+    var kind = GloveboxFormat.FileKind(Model.Location);
+    var icon = GloveboxFormat.FileIcon(Model.Location);
+    var editable = ViewData["Editable"] is bool e ? e : true;
+}
+<li class="gb-file @(Model.IsPending ? "pending" : "")" data-gb-file data-name="@Model.Name" data-location="@Model.Location" data-kind="@kind">
+    <button type="button" class="gb-file-preview" title="@Model.Name">
+        @if (kind == "image")
+        {
+            <img src="@Model.Location" alt="" loading="lazy" />
+        }
+        else
+        {
+            <i class="bi @icon"></i>
+        }
+    </button>
+    @if (Model.IsPending)
+    {
+        <span class="gb-file-badge">New</span>
+    }
+    <div class="gb-file-name" title="@Model.Name"><i class="bi @icon"></i><span class="text-link">@Model.Name</span></div>
+    @if (editable)
+    {
+        <div class="gb-file-actions">
+            <button type="button" class="btn" onclick="editFileName(this)" aria-label="Rename" title="Rename"><i class="bi bi-pencil"></i></button>
+            <button type="button" class="btn gb-danger" onclick="deleteFileFromUploadedFiles(this)" aria-label="Remove" title="Remove"><i class="bi bi-trash"></i></button>
+        </div>
+    }
+</li>

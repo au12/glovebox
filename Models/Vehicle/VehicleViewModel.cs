@@ -1,4 +1,4 @@
-﻿namespace CarCareTracker.Models
+namespace CarCareTracker.Models
 {
     public class VehicleViewModel
     {
@@ -23,5 +23,12 @@
         public decimal CostPerMile { get; set; }
         public decimal TotalCost { get; set; }
         public string DistanceUnit { get; set; } = string.Empty;
+        //Glovebox garage card
+        public List<DueItem> DueItems { get; set; } = new List<DueItem>();
+        public int OverdueCount { get; set; }
+        public int UrgentCount { get; set; }
+        public int DueSoonCount { get; set; }
+        public int HeadsUpCount { get; set; }
+        public DateTime? LastOdometerDate { get; set; }
     }
 }

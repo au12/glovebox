@@ -1,4 +1,4 @@
-﻿$.expr.pseudos.containsNC = $.expr.createPseudo(function (arg) {
+$.expr.pseudos.containsNC = $.expr.createPseudo(function (arg) {
     return function (elem) {
         return $(elem).text().toUpperCase().indexOf(arg.toUpperCase()) >= 0;
     };
@@ -476,16 +476,15 @@ function getAndValidateSelectedVehicle() {
     }
 }
 function showMobileNav() {
-    $(".lubelogger-mobile-nav").addClass("lubelogger-mobile-nav-show");
-    //hide body scrollbar
-    $("body").css('overflow-y', 'hidden');
-    $("body").css('position', 'fixed'); //iOS SafariWebKit hack fix
+    //Glovebox: the mobile menu is the "More" sheet
+    if (typeof gbOpenSheet === 'function') {
+        gbOpenSheet('gbMoreSheet');
+    }
 }
 function hideMobileNav() {
-    $(".lubelogger-mobile-nav").removeClass("lubelogger-mobile-nav-show");
-    //re-enable scrollbar.
-    $("body").css('overflow-y', 'auto');
-    $("body").css('position', ''); //iOS SafariWebKit hack fix
+    if (typeof gbCloseSheets === 'function') {
+        gbCloseSheets();
+    }
 }
 var windowWidthForCompare = 0;
 function bindWindowResize() {
@@ -635,7 +634,9 @@ function updateAggregateLabels() {
     //Count
     var newCount = $("[data-record-type='cost']").parent(":not('.override-hide')").length;
     var countLabel = $("[data-aggregate-type='count']");
-    countLabel.text(`${countLabel.text().split(':')[0]}: ${newCount}`);
+    if (!gbSetCountLabel(countLabel, newCount)) {
+        countLabel.text(`${countLabel.text().split(':')[0]}: ${newCount}`);
+    }
 }
 
 function uploadVehicleFilesAsync(event) {
@@ -659,6 +660,7 @@ function uploadVehicleFilesAsync(event) {
             uploadedFiles.push.apply(uploadedFiles, response);
             $.post('/Vehicle/GetFilesPendingUpload', { uploadedFiles: uploadedFiles }, function (viewData) {
                 $("#filesPendingUpload").html(viewData);
+                gbHydrateFileThumbs('#filesPendingUpload');
             });
         }
     }).fail(() => {
@@ -692,56 +694,73 @@ function uploadVehicleLinksAsync(event) {
             uploadedFiles.push({ name: result.value.newLinkName, location: result.value.newLinkLocation, isPending: true });
             $.post('/Vehicle/GetFilesPendingUpload', { uploadedFiles: uploadedFiles }, function (viewData) {
                 $("#filesPendingUpload").html(viewData);
+                gbHydrateFileThumbs('#filesPendingUpload');
             });
         }
     });
 }
-function deleteFileFromUploadedFiles(fileLocation, event) {
-    event.parentElement.parentElement.parentElement.remove();
+function gbFileElem(locationOrElem, elem) {
+    //accepts (element) or the legacy (fileLocation, element) signature
+    let source = typeof locationOrElem === 'string' ? elem : locationOrElem;
+    return $(source).closest('[data-gb-file]');
+}
+function deleteFileFromUploadedFiles(locationOrElem, elem) {
+    let fileElem = gbFileElem(locationOrElem, elem);
+    let fileLocation = typeof locationOrElem === 'string' ? locationOrElem : fileElem.attr('data-location');
+    fileElem.remove();
     uploadedFiles = uploadedFiles.filter(x => x.location != fileLocation);
     if ($("#documentsPendingUploadList > li").length == 0) {
-        $("#documentsPendingUploadLabel").text("");
+        $("#documentsPendingUploadLabel").remove();
     }
     if ($("#uploadedDocumentsList > li").length == 0) {
-        $("#uploadedDocumentsLabel").text("");
+        $("#uploadedDocumentsLabel").remove();
     }
 }
-function editFileName(fileLocation, event) {
-    let currentFileName = $(event.parentElement.parentElement).find('a > .text-link').text();
+function editFileName(locationOrElem, elem) {
+    let fileElem = gbFileElem(locationOrElem, elem);
+    let fileLocation = typeof locationOrElem === 'string' ? locationOrElem : fileElem.attr('data-location');
+    let currentFileName = fileElem.attr('data-name') || fileElem.find('.text-link').text();
     Swal.fire({
-        title: 'Rename File or Link',
-        html: `
-                    <input type="text" id="newFileName" class="swal2-input" placeholder="New Name" onkeydown="handleSwalEnter(event)" value="${currentFileName}">
-                    `,
+        title: 'Rename attachment',
+        input: 'text',
+        inputValue: currentFileName,
+        inputPlaceholder: 'New name',
         confirmButtonText: 'Rename',
+        showCancelButton: true,
         focusConfirm: false,
-        preConfirm: () => {
-            const newFileName = $("#newFileName").val();
-            if (!newFileName) {
-                Swal.showValidationMessage(`Please enter a valid name`)
+        preConfirm: (newFileName) => {
+            if (!newFileName || newFileName.trim() == '') {
+                Swal.showValidationMessage(`Enter a name`)
             }
             return { newFileName }
         },
     }).then(function (result) {
         if (result.isConfirmed) {
-            var linkDisplayObject = $(event.parentElement.parentElement).find('a > .text-link');
-            linkDisplayObject.text(result.value.newFileName);
+            let newName = result.value.newFileName.trim();
+            fileElem.attr('data-name', newName);
+            fileElem.find('.text-link').text(newName);
+            fileElem.find('.gb-file-name, .gb-file-preview').attr('title', newName);
             var editFileIndex = uploadedFiles.findIndex(x => x.location == fileLocation);
-            uploadedFiles[editFileIndex].name = result.value.newFileName;
+            if (editFileIndex > -1) {
+                uploadedFiles[editFileIndex].name = newName;
+            }
         }
     });
 }
 var scrollPosition = 0;
 var savedTag = '';
 function saveScrollPosition() {
-    scrollPosition = $(".vehicleDetailTabContainer").scrollTop();
+    //Glovebox: lists scroll with the page instead of an inner container
+    scrollPosition = window.scrollY;
     let selectedTagElem = $(".tagfilter.bg-primary");
     if (selectedTagElem.length > 0) {
         savedTag = selectedTagElem.text();
     }
 }
 function restoreScrollPosition() {
-    $(".vehicleDetailTabContainer").scrollTop(scrollPosition);
+    if (scrollPosition > 0) {
+        window.scrollTo({ top: scrollPosition, behavior: 'auto' });
+    }
     scrollPosition = 0;
     if (savedTag != '') {
         let availableTagElem = $(".tagfilter").filter((index, elem) => $(elem).text() == savedTag);
@@ -764,7 +783,7 @@ function toggleMarkDownOverlay(textAreaName) {
     if (text.length > 0) {
         var formatted = markdown(text);
         //var overlay div
-        var overlayDiv = `<div class='markdown-overlay' style="z-index: 1060; position:absolute; top:${textArea.css('top')}; left:${textArea.css('left')}; width:${textArea.css('width')}; height:${textArea.css('height')}; padding:${textArea.css('padding')}; overflow-y:auto; background-color:var(--bs-modal-bg);">${formatted}</div>`;
+        var overlayDiv = `<div class='markdown-overlay gb-markdown' style="z-index: 1060; position:absolute; top:${textArea.css('top')}; left:${textArea.css('left')}; width:${textArea.css('width')}; height:${textArea.css('height')}; padding:${textArea.css('padding')}; overflow-y:auto; background-color:var(--bs-modal-bg);">${formatted}</div>`;
         textArea.parent().children(`label[for=${textAreaName}]`).append(overlayDiv);
     }
 }
@@ -1720,6 +1739,13 @@ function loadUserColumnPreferences(columns, order) {
     $(".col-visible-toggle").prop("checked", false);
     //hide all columns
     $('[data-column]').hide();
+    //columns without a visibility toggle (e.g. row actions) are always shown
+    $('[data-column]').each(function () {
+        let columnName = $(this).attr('data-column');
+        if ($(`[data-column-toggle='${columnName}'].col-visible-toggle`).length == 0) {
+            $(this).show();
+        }
+    });
     //toggle visibility of each column
     columns.map(x => {
         var defaultColumn = $(`[data-column-toggle='${x}'].col-visible-toggle`);
@@ -1774,33 +1800,34 @@ function noPropagation() {
 }
 var checkExist;
 var elemsToCheck = [];
+//Runs callBack(callBackParameter) once element exists.
+//A single poller serves every pending element and calls each element's own callback
+//(previously every poller called its own callback for every pending element, which
+//re-ran the wrong callbacks when two waits overlapped).
 function waitForElement(element, callBack, callBackParameter) {
-    //if element already exists
     if ($(`${element}`).length) {
         callBack(callBackParameter);
         return;
     }
-    //element does not exist, add to list
     elemsToCheck.push({
         element: element,
         callBack: callBack,
-        callBackParameter: callBackParameter
+        callBackParameter: callBackParameter,
+        started: Date.now()
     });
+    if (checkExist) {
+        return;
+    }
     checkExist = setInterval(function () {
-        console.log(`Elems to check: ${elemsToCheck.length}`);
-        let elemsToRemove = [];
-        elemsToCheck.map(x => {
-            if ($(`${x.element}`).length) {
-                callBack(x.callBackParameter);
-                elemsToRemove.push(x);
-            }
-        });
-        elemsToCheck = elemsToCheck.filter(x => !elemsToRemove.find(y => y.element == x.element && y.callBack == x.callBack));
-        console.log(`Elems remaining: ${elemsToCheck.length}`);
+        let ready = elemsToCheck.filter(x => $(`${x.element}`).length);
+        //stop waiting for elements that never show up (for example a section that failed to load)
+        elemsToCheck = elemsToCheck.filter(x => !ready.includes(x) && Date.now() - x.started < 20000);
+        ready.forEach(x => x.callBack(x.callBackParameter));
         if (elemsToCheck.length == 0) {
             clearInterval(checkExist);
+            checkExist = undefined;
         }
-    }, 100); // check every 100ms
+    }, 100);
 }
 function bindModalInputChanges(modalName) {
     //bind text inputs
@@ -1846,7 +1873,8 @@ function handleSwalEnter(e) {
     }
 }
 function togglePasswordVisibility(elem) {
-    var passwordField = $(elem).parent().siblings("input");
+    var inputGroup = $(elem).closest('.input-group');
+    var passwordField = inputGroup.length > 0 ? inputGroup.find('input').first() : $(elem).parent().siblings("input");
     var passwordButton = $(elem).find('.bi');
     if (passwordField.attr("type") == "password") {
         passwordField.attr("type", "text");
@@ -1966,11 +1994,15 @@ function handleEndFileDrop(event) {
     }
 }
 function bindNavBarResize() {
+    //Glovebox: the navigation no longer overflows into a "more" dropdown.
+    let navBar = document.querySelector('.lubelogger-navbar');
+    if (navBar == null) {
+        return;
+    }
     let resizeObserver = new ResizeObserver((elems) => {
-        let targetElem = $(elems[0].target);
         checkNavBarOverflow();
     });
-    resizeObserver.observe(document.querySelector('.lubelogger-navbar'));
+    resizeObserver.observe(navBar);
 }
 function checkNavBarOverflow() {
     //check height
@@ -2009,15 +2041,7 @@ function checkNavBarOverflow() {
         removeNavbarItems()
     }
 }
-function openAttachmentPreview(fileName, fileLocation) {
-    $.get('/Files/PreviewFile', { fileName: fileName, fileLocation: fileLocation }, function (data) {
-        $('#attachmentPreviewModalContent').html(data);
-        $('#attachmentPreviewModal').modal('show');
-    });
-}
-function closeAttachmentPreview() {
-    $('#attachmentPreviewModal').modal('hide');
-}
+//openAttachmentPreview/closeAttachmentPreview live in glovebox.js (in-app viewer)
 function setBrowserHistory(param, val) {
     let currentParams = new URLSearchParams(window.location.search);
     //early return if the param already matches the val.

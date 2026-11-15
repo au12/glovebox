@@ -1,4 +1,4 @@
-﻿using CarCareTracker.Models;
+using CarCareTracker.Models;
 
 namespace CarCareTracker.Helper
 {
@@ -77,13 +77,11 @@ namespace CarCareTracker.Helper
         public List<ReminderRecordViewModel> GetReminderRecordViewModels(List<ReminderRecord> reminders, int currentMileage, DateTime dateCompare)
         {
             List<ReminderRecordViewModel> reminderViewModels = new List<ReminderRecordViewModel>();
-            var reminderUrgencyConfig = _config.GetReminderUrgencyConfig();
+            var defaultUrgencyConfig = _config.GetReminderUrgencyConfig();
             foreach (var reminder in reminders)
             {
-                if (reminder.UseCustomThresholds)
-                {
-                    reminderUrgencyConfig = reminder.CustomThresholds;
-                }
+                //use a per-reminder variable so one reminder's custom thresholds don't leak into the next one.
+                var reminderUrgencyConfig = reminder.UseCustomThresholds && reminder.CustomThresholds != null ? reminder.CustomThresholds : defaultUrgencyConfig;
                 var reminderViewModel = new ReminderRecordViewModel()
                 {
                     Id = reminder.Id,

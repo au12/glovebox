@@ -1,4 +1,4 @@
-﻿using CarCareTracker.External.Interfaces;
+using CarCareTracker.External.Interfaces;
 using CarCareTracker.Models;
 using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
@@ -167,12 +167,13 @@ namespace CarCareTracker.Helper
         public string GetLogoUrl()
         {
             var logoUrl = CheckString("LUBELOGGER_LOGO_URL", StaticHelper.DefaultLogoPath);
-            return logoUrl;
+            //a stored path to the old LubeLogger artwork means "use the default"
+            return logoUrl == StaticHelper.LegacyDefaultLogoPath ? StaticHelper.DefaultLogoPath : logoUrl;
         }
         public string GetSmallLogoUrl()
         {
             var logoUrl = CheckString("LUBELOGGER_LOGO_SMALL_URL", StaticHelper.DefaultSmallLogoPath);
-            return logoUrl;
+            return logoUrl == StaticHelper.LegacyDefaultSmallLogoPath ? StaticHelper.DefaultSmallLogoPath : logoUrl;
         }
         public string GetDefaultReminderEmail()
         {
@@ -253,11 +254,11 @@ namespace CarCareTracker.Helper
             {
                 serverConfig.AllowedFileExtensions = null;
             }
-            if (serverConfig.CustomLogoURL == StaticHelper.DefaultLogoPath || string.IsNullOrWhiteSpace(serverConfig.CustomLogoURL))
+            if (serverConfig.CustomLogoURL == StaticHelper.DefaultLogoPath || serverConfig.CustomLogoURL == StaticHelper.LegacyDefaultLogoPath || string.IsNullOrWhiteSpace(serverConfig.CustomLogoURL))
             {
                 serverConfig.CustomLogoURL = null;
             }
-            if (serverConfig.CustomSmallLogoURL == StaticHelper.DefaultSmallLogoPath || string.IsNullOrWhiteSpace(serverConfig.CustomSmallLogoURL))
+            if (serverConfig.CustomSmallLogoURL == StaticHelper.DefaultSmallLogoPath || serverConfig.CustomSmallLogoURL == StaticHelper.LegacyDefaultSmallLogoPath || string.IsNullOrWhiteSpace(serverConfig.CustomSmallLogoURL))
             {
                 serverConfig.CustomSmallLogoURL = null;
             }
@@ -492,7 +493,9 @@ namespace CarCareTracker.Helper
                 DisableAutoZoom = CheckBool(CheckString(nameof(UserConfig.DisableAutoZoom))),
                 EnablePersistentDialog = CheckBool(CheckString(nameof(UserConfig.EnablePersistentDialog))),
                 UseGridInMobile = CheckBool(CheckString(nameof(UserConfig.UseGridInMobile))),
-                EnableNotesColumnWrap = CheckBool(CheckString(nameof(UserConfig.EnableNotesColumnWrap)))
+                EnableNotesColumnWrap = CheckBool(CheckString(nameof(UserConfig.EnableNotesColumnWrap))),
+                HideCostTracking = CheckBool(CheckString(nameof(UserConfig.HideCostTracking))),
+                Ntfy = _config.GetSection(nameof(UserConfig.Ntfy)).Get<NtfyConfig>() ?? new NtfyConfig()
             };
             int userId = 0;
             if (user != null)

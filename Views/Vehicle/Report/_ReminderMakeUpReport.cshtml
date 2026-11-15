@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @{
@@ -17,15 +17,17 @@
                 type: 'doughnut',
                 data: {
                     labels: [
-                    decodeHTMLEntities('@translator.Translate(userLanguage, "Not Urgent")'), 
+                    decodeHTMLEntities('@translator.Translate(userLanguage, "OK")'), 
+                    decodeHTMLEntities('@translator.Translate(userLanguage, "Due soon")'), 
                     decodeHTMLEntities('@translator.Translate(userLanguage, "Urgent")'), 
-                    decodeHTMLEntities('@translator.Translate(userLanguage, "Very Urgent")'), 
-                    decodeHTMLEntities('@translator.Translate(userLanguage, "Past Due")')
+                    decodeHTMLEntities('@translator.Translate(userLanguage, "Overdue")')
                     ],
                     datasets: [
                         {
                             label: decodeHTMLEntities('@translator.Translate(userLanguage, "Reminders by Category")'),
-                            backgroundColor: ["#488f31", "#ffa600", "#de425b", "#cccccc"],
+                            backgroundColor: [gbCssVar('--gb-green'), gbCssVar('--gb-amber'), gbCssVar('--gb-orange'), gbCssVar('--gb-red')],
+                            borderColor: gbCssVar('--gb-surface'),
+                            borderWidth: 2,
                             data: [
                                 @Model.NotUrgentCount,
                                 @Model.UrgentCount,
@@ -42,13 +44,11 @@
                         legend: {
                             position: "bottom",
                             labels: {
-                                color: useDarkMode ? "#fff" : "#000"
+                                color: gbChartInk()
                             }
                         },
                         title: {
-                            display: true,
-                            text: decodeHTMLEntities('@translator.Translate(userLanguage, "Reminders by Urgency")'),
-                            color: useDarkMode ? "#fff" : "#000"
+                            display: false
                         },
                     }
                 }
@@ -58,7 +58,5 @@
 }
 else
 {
-    <div class="text-center">
-        <h4>@translator.Translate(userLanguage,"No data found, create reminders to see visualizations here.")</h4>
-    </div>
+    <div class="gb-chart-empty">@translator.Translate(userLanguage, "No reminders yet.")</div>
 }

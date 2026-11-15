@@ -1,0 +1,259 @@
+@using CarCareTracker.Helper
+@using System.Globalization
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@model VehicleOverviewViewModel
+@{
+    var userConfig = config.GetUserConfig(User);
+    var userLanguage = userConfig.UserLanguage;
+    var vehicle = Model.Vehicle;
+    var unit = Model.DistanceUnit;
+    var identifier = StaticHelper.GetVehicleIdentifier(vehicle);
+    var isSold = !string.IsNullOrWhiteSpace(vehicle.SoldDate);
+    var visible = Model.VisibleTabs;
+    bool Visible(ImportMode mode) => visible.Contains(mode);
+    var canLog = Visible(ImportMode.ServiceRecord);
+    var dueItems = Model.DueItems.Take(6).ToList();
+    var monthlyDistance = Model.AverageDailyDistance * 30.4375;
+    var dueViewData = new ViewDataDictionary(ViewData) { { "DistanceUnit", unit }, { "CanLog", canLog } };
+}
+<div class="gb-overview">
+    <section class="gb-ov-hero">
+        <div class="gb-ov-photo @(isSold ? "sold" : "")">
+            @if (GloveboxFormat.HasPhoto(vehicle.ImageLocation))
+            {
+                <img src="@vehicle.ImageLocation" alt="" />
+            }
+            else
+            {
+                <span class="gb-photo-empty" aria-hidden="true"><i class="bi bi-car-front"></i></span>
+            }
+            @if (!string.IsNullOrWhiteSpace(identifier))
+            {
+                <span class="gb-vcard-plate">@identifier</span>
+            }
+        </div>
+        <div class="gb-ov-ident">
+            <div class="gb-ov-year">
+                <span>@vehicle.Year</span>
+                @if (isSold)
+                {
+                    <span class="gb-pill">@translator.Translate(userLanguage, "Sold") @vehicle.SoldDate</span>
+                }
+                @foreach (var tag in vehicle.Tags)
+                {
+                    <span class="gb-pill">@tag</span>
+                }
+            </div>
+            <h1 class="gb-ov-name">@vehicle.Make @vehicle.Model</h1>
+            <div class="gb-ov-odo-row">
+                @if (Model.CurrentOdometer > 0)
+                {
+                    @await Html.PartialAsync("_Odometer", new OdometerViewModel { Value = Model.CurrentOdometer, Unit = unit, Size = "lg", Roll = true })
+                    <div class="gb-ov-odo-meta">
+                        @if (Model.LastOdometerDate.HasValue)
+                        {
+                            <div>@translator.Translate(userLanguage, "Last reading") <strong>@Model.LastOdometerDate.Value.ToShortDateString()</strong></div>
+                        }
+                        @if (monthlyDistance >= 1)
+                        {
+                            <div>@translator.Translate(userLanguage, "About") <strong>@GloveboxFormat.Distance((int)Math.Round(monthlyDistance), unit)</strong> @translator.Translate(userLanguage, "a month")</div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="gb-ov-odo-meta">@translator.Translate(userLanguage, "No odometer readings yet.")</div>
+                }
+            </div>
+            <div class="gb-ov-actions">
+                @if (Visible(ImportMode.GasRecord))
+                {
+                    <button type="button" class="btn btn-primary" onclick="gbQuickAdd('gas')"><i class="bi bi-fuel-pump"></i>@translator.Translate(userLanguage, "Log fuel-up")</button>
+                }
+                @if (Visible(ImportMode.OdometerRecord))
+                {
+                    <button type="button" class="btn @(Visible(ImportMode.GasRecord) ? "btn-secondary" : "btn-primary")" onclick="gbQuickAdd('odometer')"><i class="bi bi-speedometer"></i>@translator.Translate(userLanguage, "Update odometer")</button>
+                }
+                @if (Visible(ImportMode.ServiceRecord))
+                {
+                    <button type="button" class="btn btn-secondary" onclick="gbQuickAdd('servicerecord')"><i class="bi bi-wrench-adjustable"></i>@translator.Translate(userLanguage, "Add service")</button>
+                }
+                <button type="button" class="btn btn-secondary btn-icon" onclick="gbOpenSheet('gbAddSheet')" title="@translator.Translate(userLanguage, "Add something else")" aria-label="@translator.Translate(userLanguage, "Add something else")"><i class="bi bi-plus-lg"></i></button>
+            </div>
+        </div>
+    </section>
+
+    <div class="gb-ov-grid">
+        <div class="gb-ov-main">
+            <section aria-labelledby="gbComingUp">
+                <div class="gb-block-head">
+                    <h2 id="gbComingUp">@translator.Translate(userLanguage, "Coming up")</h2>
+                    @if (Visible(ImportMode.ReminderRecord) && Model.DueItems.Any())
+                    {
+                        <button type="button" class="btn btn-link" data-gb-tab="reminder-tab">@translator.Translate(userLanguage, Model.DueItems.Count > dueItems.Count ? $"All {Model.DueItems.Count} reminders" : "All reminders")</button>
+                    }
+                </div>
+                <div class="gb-due-list">
+                    @if (dueItems.Any())
+                    {
+                        @foreach (var item in dueItems)
+                        {
+                            <partial name="Overview/_DueItem" model="item" view-data="dueViewData" />
+                        }
+                    }
+                    else
+                    {
+                        <div class="gb-due-empty">
+                            <i class="bi bi-calendar2-check"></i>
+                            <div class="flex-grow-1">
+                                <strong class="d-block">@translator.Translate(userLanguage, "No reminders yet")</strong>
+                                <span>@translator.Translate(userLanguage, "Track oil changes, inspections and renewals so nothing sneaks up on you.")</span>
+                            </div>
+                            <button type="button" class="btn btn-secondary" onclick="showAddReminderModal()"><i class="bi bi-plus-lg"></i>@translator.Translate(userLanguage, "Add reminder")</button>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section aria-labelledby="gbHistory">
+                <div class="gb-block-head">
+                    <h2 id="gbHistory">@translator.Translate(userLanguage, "Recent history")</h2>
+                    @if (Visible(ImportMode.ServiceRecord) && Model.RecentHistory.Any())
+                    {
+                        <button type="button" class="btn btn-link" data-gb-tab="servicerecord-tab">@translator.Translate(userLanguage, "All service records")</button>
+                    }
+                </div>
+                @if (Model.RecentHistory.Any())
+                {
+                    <div class="gb-history">
+                        @foreach (var item in Model.RecentHistory)
+                        {
+                            var tab = GloveboxFormat.TabId(item.RecordType);
+                            <div class="gb-history-row" role="button" tabindex="0" onclick="gbOpenRecord('@tab', @item.Id)" onkeydown="if(event.key==='Enter'){gbOpenRecord('@tab', @item.Id)}">
+                                <div class="gb-history-date"><strong>@item.Date.ToString("MMM d", CultureInfo.CurrentCulture)</strong>@item.Date.Year</div>
+                                <span class="gb-history-icon" title="@translator.Translate(userLanguage, GloveboxFormat.RecordTypeName(item.RecordType))"><i class="bi @GloveboxFormat.RecordIcon(item.RecordType)"></i></span>
+                                <div class="gb-history-main">
+                                    <strong>@item.Description</strong>
+                                    <small>@(translator.Translate(userLanguage, GloveboxFormat.RecordTypeName(item.RecordType)) + (item.Mileage > 0 ? $", {GloveboxFormat.Distance(item.Mileage, unit)}" : string.Empty))</small>
+                                </div>
+                                <div class="gb-history-end">
+                                    @if (item.AttachmentCount > 0)
+                                    {
+                                        <i class="bi bi-paperclip" title="@item.AttachmentCount @translator.Translate(userLanguage, "attachments")"></i>
+                                    }
+                                    @if (Model.ShowCosts && item.Cost != default)
+                                    {
+                                        <span class="gb-cost">@item.Cost.ToString("C", CultureInfo.CurrentCulture)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="gb-history">
+                        <div class="gb-due-empty">
+                            <i class="bi bi-journal-plus" style="color:var(--gb-text-3)"></i>
+                            <div class="flex-grow-1">
+                                <strong class="d-block">@translator.Translate(userLanguage, "No service history yet")</strong>
+                                <span>@translator.Translate(userLanguage, "Log your first service, repair or upgrade to build the vehicle's history.")</span>
+                            </div>
+                            @if (Visible(ImportMode.ServiceRecord))
+                            {
+                                <button type="button" class="btn btn-secondary" onclick="gbQuickAdd('servicerecord')"><i class="bi bi-plus-lg"></i>@translator.Translate(userLanguage, "Add service")</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+        </div>
+
+        <aside class="gb-ov-side">
+            <div class="gb-panel">
+                <h3>@translator.Translate(userLanguage, "At a glance")</h3>
+                <dl class="gb-stat-list">
+                    @if (Model.CurrentOdometer > 0)
+                    {
+                        <div><dt>@translator.Translate(userLanguage, "Odometer")</dt><dd>@GloveboxFormat.Distance(Model.CurrentOdometer, unit)</dd></div>
+                    }
+                    @if (monthlyDistance >= 1)
+                    {
+                        <div><dt>@translator.Translate(userLanguage, "Driven per month")</dt><dd>@GloveboxFormat.Distance((int)Math.Round(monthlyDistance), unit)</dd></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.AverageFuelEconomy) && Model.AverageFuelEconomy != "0" && Model.AverageFuelEconomy != "0.00")
+                    {
+                        <div><dt>@translator.Translate(userLanguage, "Fuel economy")</dt><dd>@Model.AverageFuelEconomy @Model.FuelEconomyUnit</dd></div>
+                    }
+                    <div><dt>@translator.Translate(userLanguage, "Maintenance records")</dt><dd>@Model.ServiceCount</dd></div>
+                    @if (Model.OpenPlanCount > 0)
+                    {
+                        <div><dt>@translator.Translate(userLanguage, "Open plans")</dt><dd><a href="#" data-gb-tab="plan-tab">@Model.OpenPlanCount</a></dd></div>
+                    }
+                    @if (Model.ShowCosts)
+                    {
+                        <div class="gb-cost-only"><dt>@translator.Translate(userLanguage, "Spent this year")</dt><dd>@Model.CostThisYear.ToString("C0", CultureInfo.CurrentCulture)</dd></div>
+                        <div class="gb-cost-only"><dt>@translator.Translate(userLanguage, "Spent in total")</dt><dd>@Model.TotalCost.ToString("C0", CultureInfo.CurrentCulture)</dd></div>
+                        @if (Model.CostPerDistance > 0)
+                        {
+                            <div class="gb-cost-only"><dt>@translator.Translate(userLanguage, "Cost per") @unit</dt><dd>@Model.CostPerDistance.ToString("C2", CultureInfo.CurrentCulture)</dd></div>
+                        }
+                    }
+                </dl>
+            </div>
+
+            @if (Model.PinnedNotes.Any())
+            {
+                <div class="gb-panel">
+                    <h3>@translator.Translate(userLanguage, "Pinned notes")</h3>
+                    @foreach (var note in Model.PinnedNotes)
+                    {
+                        <div class="gb-pinned-note" role="button" tabindex="0" onclick="showNoteViewer(@note.Id)" onkeydown="if(event.key==='Enter'){showNoteViewer(@note.Id)}">
+                            <strong>@note.Description</strong>
+                            <span>@StaticHelper.TruncateStrings(note.NoteText, 160)</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="gb-panel">
+                <h3>@translator.Translate(userLanguage, "Tools")</h3>
+                <div class="gb-tool-list">
+                    <button type="button" onclick="getVehicleCharts(@vehicle.Id)"><i class="bi bi-bar-chart-line"></i>@translator.Translate(userLanguage, "Charts and reports")</button>
+                    <button type="button" onclick="generateVehicleHistoryReport()"><i class="bi bi-file-earmark-text"></i>@translator.Translate(userLanguage, "Maintenance report")</button>
+                    <button type="button" onclick="exportAttachments()"><i class="bi bi-archive"></i>@translator.Translate(userLanguage, "Export attachments")</button>
+                    @if (Model.HasVehicleImageMap)
+                    {
+                        <button type="button" onclick="loadVehicleImageMap()"><i class="bi bi-map"></i>@translator.Translate(userLanguage, "Vehicle map")</button>
+                    }
+                    @if (Model.CustomWidgetsConfigured)
+                    {
+                        <button type="button" onclick="showCustomWidgets()"><i class="bi bi-grid-1x2"></i>@translator.Translate(userLanguage, "Additional widgets")</button>
+                    }
+                    <button type="button" onclick="editVehicle(@vehicle.Id)"><i class="bi bi-pencil"></i>@translator.Translate(userLanguage, "Edit vehicle")</button>
+                </div>
+            </div>
+
+            <div class="gb-panel" id="collaboratorContent">
+                @await Html.PartialAsync("Report/_Collaborators", Model.Collaborators)
+            </div>
+        </aside>
+    </div>
+</div>
+<div class="modal fade" data-bs-focus="false" id="vehicleDataTableModal" tabindex="-1" role="dialog" aria-hidden="true" @StaticHelper.GetStaticModalAttribute(userConfig.EnablePersistentDialog)>
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content" id="vehicleDataTableModalContent">
+        </div>
+    </div>
+</div>
+@if (Model.CustomWidgetsConfigured)
+{
+    <div class="modal fade" data-bs-focus="false" id="vehicleCustomWidgetsModal" tabindex="-1" role="dialog" aria-hidden="true" @StaticHelper.GetStaticModalAttribute(userConfig.EnablePersistentDialog)>
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content" id="vehicleCustomWidgetsModalContent">
+            </div>
+        </div>
+    </div>
+    <script>loadCustomWidgets()</script>
+}

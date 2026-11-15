@@ -1,4 +1,4 @@
-﻿using CarCareTracker.Models;
+using CarCareTracker.Models;
 using CsvHelper;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -15,14 +15,46 @@ namespace CarCareTracker.Helper
     public static class StaticHelper
     {
         public const string VersionNumber = "1.7.4";
+        private static string? _assetVersion;
+        /// <summary>
+        /// Glovebox: cache-busting token for static files. VersionNumber stays the upstream
+        /// LubeLogger version (API clients read it), so the build time is appended to make sure
+        /// browsers fetch fresh CSS and JS after every image update.
+        /// </summary>
+        public static string AssetVersion
+        {
+            get
+            {
+                if (_assetVersion == null)
+                {
+                    long stamp = 0;
+                    try
+                    {
+                        var assemblyPath = typeof(StaticHelper).Assembly.Location;
+                        if (!string.IsNullOrWhiteSpace(assemblyPath) && File.Exists(assemblyPath))
+                        {
+                            stamp = new DateTimeOffset(File.GetLastWriteTimeUtc(assemblyPath)).ToUnixTimeSeconds();
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        stamp = 0;
+                    }
+                    _assetVersion = stamp > 0 ? $"{VersionNumber}-gb{stamp}" : $"{VersionNumber}-gb";
+                }
+                return _assetVersion;
+            }
+        }
         public const string DbName = "data/cartracker.db";
         public const string UserConfigPath = "data/config/userConfig.json";
         public const string ServerConfigPath = "data/config/serverConfig.json";
         public const string LegacyUserConfigPath = "config/userConfig.json";
         public const string LegacyServerConfigPath = "config/serverConfig.json";
         public const string AdditionalWidgetsPath = "data/widgets.html";
-        public const string DefaultLogoPath = "/defaults/lubelogger_logo.png";
-        public const string DefaultSmallLogoPath = "/defaults/lubelogger_logo_small.png";
+        public const string DefaultLogoPath = "/defaults/glovebox_logo.png";
+        public const string LegacyDefaultLogoPath = "/defaults/lubelogger_logo.png";
+        public const string DefaultSmallLogoPath = "/defaults/glovebox_logo_small.png";
+        public const string LegacyDefaultSmallLogoPath = "/defaults/lubelogger_logo_small.png";
         public const string GenericErrorMessage = "An error occurred, please try again later";
         public const string ReminderEmailTemplate = "defaults/reminderemailtemplate.txt";
         public const string DefaultAllowedFileExtensions = ".png,.jpg,.jpeg,.pdf,.xls,.xlsx,.docx";
@@ -319,10 +351,9 @@ namespace CarCareTracker.Helper
         }
         public static void InitMessage(IConfiguration config)
         {
-            Console.WriteLine($"LubeLogger {VersionNumber}");
-            Console.WriteLine("Website: https://lubelogger.com");
-            Console.WriteLine("Documentation: https://docs.lubelogger.com");
-            Console.WriteLine("GitHub: https://github.com/hargata/lubelog");
+            Console.WriteLine($"Glovebox (based on LubeLogger {VersionNumber})");
+            Console.WriteLine("GitHub: https://github.com/au12/glovebox");
+            Console.WriteLine("LubeLogger documentation: https://docs.lubelogger.com");
             var mailConfig = config.GetSection("MailConfig").Get<MailConfig>();
             if (mailConfig != null && !string.IsNullOrWhiteSpace(mailConfig.EmailServer))
             {

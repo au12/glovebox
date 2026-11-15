@@ -103,16 +103,19 @@ function generateReminderItem(id, urgency, description) {
     if (description.trim() == '') {
         return;
     }
+    var pillClass = 'gb-pill--ok';
     switch (urgency) {
-        case "VeryUrgent":
-            return `<p class="badge text-wrap bg-danger reminder-calendar-item mb-2" onclick='showCalendarReminderModal(${id})'>${encodeHTMLInput(description)}</p>`;
         case "PastDue":
-            return `<p class="badge text-wrap bg-secondary reminder-calendar-item mb-2" onclick='showCalendarReminderModal(${id})'>${encodeHTMLInput(description)}</p>`;
+            pillClass = 'gb-pill--overdue';
+            break;
+        case "VeryUrgent":
+            pillClass = 'gb-pill--urgent';
+            break;
         case "Urgent":
-            return `<p class="badge text-wrap text-bg-warning reminder-calendar-item mb-2" onclick='showCalendarReminderModal(${id})'>${encodeHTMLInput(description)}</p>`;
-        case "NotUrgent":
-            return `<p class="badge text-wrap bg-success reminder-calendar-item mb-2" onclick='showCalendarReminderModal(${id})'>${encodeHTMLInput(description)}</p>`;
+            pillClass = 'gb-pill--soon';
+            break;
     }
+    return `<p class="gb-pill ${pillClass} reminder-calendar-item" onclick='showCalendarReminderModal(${id})' title="${encodeHTMLInput(description)}">${encodeHTMLInput(description)}</p>`;
 }
 function markDoneCalendarReminderRecord(reminderRecordId, e) {
     event.stopPropagation();
@@ -166,14 +169,16 @@ function initCalendar() {
         todayHighlight: true,
         weekStart: getGlobalConfig().firstDayOfWeek,
         beforeShowDay: function (date) {
+            var plainDay = { content: `<div class='gb-cal-day'><b class='gb-cal-num'>${date.getDate()}</b></div>` };
             var reminderDateIndex = groupedDates.findIndex(x => (x.date == date.getTime() || x.date == (date.getTime() - date.getTimezoneOffset() * 60000))); //take into account server timezone offset
             if (reminderDateIndex > -1) {
                 return {
                     enabled: true,
                     classes: 'reminder-exist',
-                    content: `<div class='text-wrap' style='height:20px;'><p>${date.getDate()}</p>${groupedDates[reminderDateIndex].reminders.join('<br>')}</div>`
+                    content: `<div class='gb-cal-day'><b class='gb-cal-num'>${date.getDate()}</b>${groupedDates[reminderDateIndex].reminders.join('')}</div>`
                 }
             }
+            return plainDay;
         }
     });
 }
@@ -187,20 +192,19 @@ function performLogOut() {
 }
 
 function filterGarage(sender) {
-    let searchQuery = $('#garageSearchInput').val();
     if (sender == undefined) {
-        searchAndFilterGarage(undefined, searchQuery);
+        searchAndFilterGarage(undefined);
         return;
     }
     var tagName = sender.textContent;
     if ($(sender).hasClass("bg-primary")) {
-        searchAndFilterGarage(undefined, searchQuery);
+        searchAndFilterGarage(undefined);
         $(sender).removeClass('bg-primary');
         $(sender).addClass('bg-secondary');
     } else {
-        searchAndFilterGarage(tagName, searchQuery);
+        searchAndFilterGarage(tagName);
         if ($(".tagfilter.bg-primary").length > 0) {
-            //disabling other filters
+            //only one tag filter at a time
             $(".tagfilter.bg-primary").addClass('bg-secondary');
             $(".tagfilter.bg-primary").removeClass('bg-primary');
         }
@@ -208,41 +212,16 @@ function filterGarage(sender) {
         $(sender).removeClass('bg-secondary');
     }
 }
-function handleGarageSearchKeyPress(event) {
-    if (event.keyCode == 13) {
-        searchGarage();
-    } else {
-        setDebounce(searchGarage);
-    }
-}
-function searchGarage() {
-    let searchTerm = $('#garageSearchInput').val();
-    let activeTag = $(".tagfilter.bg-primary").length > 0 ? $(".tagfilter.bg-primary")[0].textContent : undefined;
-    searchAndFilterGarage(activeTag, searchTerm);
-}
-function searchAndFilterGarage(searchTag, searchTerm) {
+function searchAndFilterGarage(searchTag) {
     let rowData = $(".garage-item");
-    let searchTagEmpty = searchTag == undefined || searchTag.trim() == '';
-    let searchQueryEmpty = searchTerm == undefined || searchTerm.trim() == '';
-    if (searchTagEmpty && searchQueryEmpty) {
-        //show all garage items
+    if (searchTag == undefined || searchTag.trim() == '') {
         rowData.removeClass('override-hide');
         return;
     }
-    //hide all garage items
     rowData.addClass('override-hide');
-    if (!searchQueryEmpty && !searchTagEmpty) {
-        $(`.garage-item .card-body .garage-item-attribute:containsNC('${searchTerm}')`).closest(`.garage-item[data-tags~='${searchTag}']`).removeClass('override-hide');
-    } else {
-        if (!searchTagEmpty) {
-            //show all garage items with matching tags
-            $(`[data-tags~='${searchTag}']`).removeClass('override-hide');
-        }
-        if (!searchQueryEmpty) {
-            //show all garage items with matching search terms
-            $(`.garage-item .card-body .garage-item-attribute:containsNC('${searchTerm}')`).closest('.garage-item').removeClass('override-hide');
-        }
-    }
+    rowData.filter(function () {
+        return ($(this).attr('data-tags') || '').split(' ').includes(searchTag);
+    }).removeClass('override-hide');
 }
 // begin context menu
 var selectedVehicles = [];

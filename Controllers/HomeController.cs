@@ -28,6 +28,8 @@ namespace CarCareTracker.Controllers
         private readonly ITranslationHelper _translationHelper;
         private readonly IMailHelper _mailHelper;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IGloveboxHelper _gloveboxHelper;
+        private readonly INtfyNotificationLogic _ntfyLogic;
         public HomeController(ILogger<HomeController> logger,
             IVehicleDataAccess dataAccess,
             IUserLogic userLogic,
@@ -41,7 +43,9 @@ namespace CarCareTracker.Controllers
             IReminderHelper reminderHelper,
             ITranslationHelper translationHelper,
             IMailHelper mailHelper,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IGloveboxHelper gloveboxHelper,
+            INtfyNotificationLogic ntfyLogic)
         {
             _logger = logger;
             _dataAccess = dataAccess;
@@ -57,6 +61,8 @@ namespace CarCareTracker.Controllers
             _translationHelper = translationHelper;
             _mailHelper = mailHelper;
             _httpClientFactory = httpClientFactory;
+            _gloveboxHelper = gloveboxHelper;
+            _ntfyLogic = ntfyLogic;
         }
         private int GetUserID()
         {
@@ -93,17 +99,24 @@ namespace CarCareTracker.Controllers
                     DashboardMetrics = x.DashboardMetrics,
                     VehicleIdentifier = x.VehicleIdentifier
                 };
+                //Glovebox: every card shows the odometer and what's coming up next.
+                var userConfig = _config.GetUserConfig(User);
+                var vehicleRecords = _vehicleLogic.GetVehicleRecords(x.Id);
+                var latestOdometer = _gloveboxHelper.GetLatestOdometer(vehicleRecords);
+                vehicleVM.LastReportedMileage = latestOdometer.Mileage;
+                vehicleVM.LastOdometerDate = latestOdometer.Date;
+                vehicleVM.DistanceUnit = _gloveboxHelper.GetDistanceUnit(x, userConfig);
+                var reminders = _reminderRecordDataAccess.GetReminderRecordsByVehicleId(x.Id);
+                vehicleVM.DueItems = _gloveboxHelper.GetDueItems(reminders, latestOdometer.Mileage, _gloveboxHelper.GetAverageDailyDistance(vehicleRecords), userConfig.Ntfy, DateTime.Now);
+                vehicleVM.OverdueCount = vehicleVM.DueItems.Count(y => y.Urgency == ReminderUrgency.PastDue);
+                vehicleVM.UrgentCount = vehicleVM.DueItems.Count(y => y.Urgency == ReminderUrgency.VeryUrgent);
+                vehicleVM.DueSoonCount = vehicleVM.DueItems.Count(y => y.Urgency == ReminderUrgency.Urgent);
+                vehicleVM.HeadsUpCount = vehicleVM.DueItems.Count(y => y.InHeadsUpWindow);
+                vehicleVM.HasReminders = vehicleVM.OverdueCount + vehicleVM.UrgentCount > 0;
                 //dashboard metrics
                 if (x.DashboardMetrics.Any())
                 {
-                    var vehicleRecords = _vehicleLogic.GetVehicleRecords(x.Id);
-                    var userConfig = _config.GetUserConfig(User);
-                    var distanceUnit = x.UseHours ? "h" : userConfig.UseMPG ? "mi." : "km";
-                    if (vehicleVM.DashboardMetrics.Contains(DashboardMetric.Default))
-                    {
-                        vehicleVM.LastReportedMileage = _vehicleLogic.GetMaxMileage(vehicleRecords);
-                        vehicleVM.HasReminders = _vehicleLogic.GetVehicleHasUrgentOrPastDueReminders(x.Id, vehicleVM.LastReportedMileage);
-                    }
+                    var distanceUnit = vehicleVM.DistanceUnit;
                     if (vehicleVM.DashboardMetrics.Contains(DashboardMetric.CostPerMile))
                     {
                         var vehicleTotalCost = _vehicleLogic.GetVehicleTotalCost(vehicleRecords);
@@ -130,6 +143,7 @@ namespace CarCareTracker.Controllers
                 vehiclesStored = _userLogic.FilterUserVehicles(vehiclesStored, GetUserID());
             }
             var reminders = _vehicleLogic.GetReminders(vehiclesStored, true);
+            ViewData["Vehicles"] = vehiclesStored.ToDictionary(x => x.Id);
             return PartialView("_Calendar", reminders);
         }
         public IActionResult ViewCalendarReminder(int reminderId)
@@ -150,6 +164,70 @@ namespace CarCareTracker.Controllers
                 UIThemes = themes
             };
             return PartialView("_Settings", viewModel);
+        }
+        private NtfyConfig MergeNtfySecrets(NtfyConfig incoming, NtfyConfig existing, bool clearSecrets)
+        {
+            incoming ??= new NtfyConfig();
+            existing ??= new NtfyConfig();
+            if (!clearSecrets)
+            {
+                //secrets are never sent back to the browser, so a blank field means "keep what's stored".
+                if (string.IsNullOrWhiteSpace(incoming.AccessToken))
+                {
+                    incoming.AccessToken = existing.AccessToken;
+                }
+                if (string.IsNullOrWhiteSpace(incoming.Password))
+                {
+                    incoming.Password = existing.Password;
+                }
+            }
+            incoming.ServerUrl = string.IsNullOrWhiteSpace(incoming.ServerUrl) ? "https://ntfy.sh" : incoming.ServerUrl.Trim().TrimEnd('/');
+            incoming.Topic = (incoming.Topic ?? string.Empty).Trim();
+            incoming.AppUrl = (incoming.AppUrl ?? string.Empty).Trim().TrimEnd('/');
+            incoming.HeadsUpDistance = Math.Max(0, incoming.HeadsUpDistance);
+            incoming.HeadsUpDays = Math.Max(0, incoming.HeadsUpDays);
+            incoming.OverdueRepeatDays = Math.Clamp(incoming.OverdueRepeatDays, 0, 90);
+            incoming.QuietHoursStart = Math.Clamp(incoming.QuietHoursStart, 0, 23);
+            incoming.QuietHoursEnd = Math.Clamp(incoming.QuietHoursEnd, 0, 23);
+            return incoming;
+        }
+        [HttpPost]
+        public IActionResult SaveNotificationSettings(NtfyConfig ntfy, bool clearSecrets = false)
+        {
+            var existingConfig = _config.GetUserConfig(User);
+            existingConfig.Ntfy = MergeNtfySecrets(ntfy, existingConfig.Ntfy, clearSecrets);
+            var result = _config.SaveUserConfig(User, existingConfig);
+            if (result)
+            {
+                _ntfyLogic.RequestCheck();
+            }
+            return Json(new
+            {
+                success = result,
+                message = result ? "Notification settings saved" : StaticHelper.GenericErrorMessage,
+                hasToken = !string.IsNullOrWhiteSpace(existingConfig.Ntfy.AccessToken),
+                hasPassword = !string.IsNullOrWhiteSpace(existingConfig.Ntfy.Password)
+            });
+        }
+        [HttpPost]
+        public async Task<IActionResult> SendNtfyTest(NtfyConfig ntfy)
+        {
+            var existingConfig = _config.GetUserConfig(User);
+            var testConfig = MergeNtfySecrets(ntfy, existingConfig.Ntfy, false);
+            var vehicles = _dataAccess.GetVehicles();
+            if (!User.IsInRole(nameof(UserData.IsRootUser)))
+            {
+                vehicles = _userLogic.FilterUserVehicles(vehicles, GetUserID());
+            }
+            var firstVehicle = vehicles.FirstOrDefault(x => string.IsNullOrWhiteSpace(x.SoldDate));
+            var result = await _ntfyLogic.SendTestAsync(testConfig, firstVehicle != null ? GloveboxFormat.VehicleName(firstVehicle) : string.Empty);
+            return Json(result);
+        }
+        [HttpPost]
+        public async Task<IActionResult> CheckNotificationsNow()
+        {
+            var sent = await _ntfyLogic.RunCheckAsync();
+            return Json(OperationResponse.Succeed(sent == 0 ? "Checked. Nothing new to send." : $"Sent {sent} notification{(sent == 1 ? "" : "s")}."));
         }
         public async Task<IActionResult> Sponsors()
         {
@@ -172,6 +250,12 @@ namespace CarCareTracker.Controllers
             var existingConfig = _config.GetUserConfig(User);
             //copy over stuff that persists
             userConfig.UserColumnPreferences = existingConfig.UserColumnPreferences;
+            //notification settings are saved by their own form
+            userConfig.Ntfy = existingConfig.Ntfy ?? new NtfyConfig();
+            if (userConfig.TabOrder == null || !userConfig.TabOrder.Any())
+            {
+                userConfig.TabOrder = existingConfig.TabOrder;
+            }
             var result = _config.SaveUserConfig(User, userConfig);
             return Json(result);
         }

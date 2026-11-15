@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @{
     ViewData["Title"] = "Admin Panel";
 }
@@ -15,17 +15,7 @@
     }
 }
 @section Nav {
-    <div class="container-fluid lubelogger-navbar-container frosted hideOnPrint">
-        <div class="row mt-2">
-            <div class="d-flex lubelogger-navbar">
-                <div class="me-2" style="cursor:pointer;" onclick="returnToGarage()">
-                    <img src="@config.GetSmallLogoUrl()" class="lubelogger-logo" />
-                </div>
-                <span class="text-truncate lead">@translator.Translate(userLanguage, "Admin Panel")</span>
-            </div>
-        </div>
-        <hr />
-    </div>
+    <partial name="_AppBar" />
 }
 @model AdminViewModel
 <div class="container">

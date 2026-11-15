@@ -1,4 +1,4 @@
-﻿using CarCareTracker.Filter;
+using CarCareTracker.Filter;
 using CarCareTracker.Helper;
 using CarCareTracker.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -57,7 +57,17 @@ namespace CarCareTracker.Controllers
         public IActionResult GetReminderRecordsByVehicleId(int vehicleId)
         {
             var result = GetRemindersAndUrgency(vehicleId, DateTime.Now);
-            result = result.OrderByDescending(x => x.Urgency).ToList();
+            //Glovebox: richer due information (soonest first, with interval progress)
+            var vehicle = _dataAccess.GetVehicleById(vehicleId);
+            var userConfig = _config.GetUserConfig(User);
+            var records = _vehicleLogic.GetVehicleRecords(vehicleId);
+            var latestOdometer = _gloveboxHelper.GetLatestOdometer(records);
+            var reminders = _reminderRecordDataAccess.GetReminderRecordsByVehicleId(vehicleId);
+            var dueItems = _gloveboxHelper.GetDueItems(reminders, latestOdometer.Mileage, _gloveboxHelper.GetAverageDailyDistance(records), userConfig.Ntfy, DateTime.Now);
+            var order = dueItems.Select(x => x.Id).ToList();
+            result = result.OrderBy(x => order.IndexOf(x.Id)).ToList();
+            ViewData["DueItems"] = dueItems.ToDictionary(x => x.Id);
+            ViewData["DistanceUnit"] = _gloveboxHelper.GetDistanceUnit(vehicle, userConfig);
             return PartialView("Reminder/_ReminderRecords", result);
         }
         [TypeFilter(typeof(CollaboratorFilter))]
@@ -135,6 +145,7 @@ namespace CarCareTracker.Controllers
             {
                 var vehicleData = _dataAccess.GetVehicleById(reminderModel.VehicleId);
                 reminderModel.UseHours = vehicleData.UseHours;
+                reminderModel.CurrentOdometer = _vehicleLogic.GetMaxMileage(reminderModel.VehicleId);
             }
             return PartialView("Reminder/_ReminderRecordModal", reminderModel);
         }
@@ -169,7 +180,12 @@ namespace CarCareTracker.Controllers
                 CustomMonthInterval = result.CustomMonthInterval,
                 CustomMonthIntervalUnit = result.CustomMonthIntervalUnit,
                 Tags = result.Tags,
-                UseHours = vehicleUseHours
+                UseHours = vehicleUseHours,
+                EarlyNotice = result.EarlyNotice,
+                EarlyNoticeDistance = result.EarlyNoticeDistance,
+                EarlyNoticeDays = result.EarlyNoticeDays,
+                MuteNotifications = result.MuteNotifications,
+                CurrentOdometer = _vehicleLogic.GetMaxMileage(result.VehicleId)
             };
             return PartialView("Reminder/_ReminderRecordModal", convertedResult);
         }
