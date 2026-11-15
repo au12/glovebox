@@ -12,7 +12,7 @@ ghcr.io/au12/glovebox:0.1.0
 
 Built for `linux/amd64` and `linux/arm64`. `latest` follows `main`.
 
-**Switching from LubeLogger on Unraid:** edit the container, change Repository to `ghcr.io/au12/glovebox:0.1.0` (or `:latest`), leave every path, port and variable as it is, and apply. A template for new installs is in `unraid/glovebox.xml`.
+**Switching from LubeLogger on Unraid:** edit the container, change Repository to `ghcr.io/au12/glovebox:0.1.0` (or `:latest`), leave every path, port and variable as it is, and apply. A template for new installs is in `templates/glovebox.xml`.
 
 ## Highlights
 

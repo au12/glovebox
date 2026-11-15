@@ -65,11 +65,13 @@ If you want a safety net, make a backup from LubeLogger's Settings page before y
 
 ### New install on Unraid
 
-Use the template in this repository. In the Docker tab, choose **Add Container** and paste this into **Template**, or save it to `/boot/config/plugins/dockerMan/templates-user/`:
+Once Glovebox is listed in Community Apps, search for it on the **Apps** tab and click **Install**. Until then, save [`templates/glovebox.xml`](templates/glovebox.xml) to `/boot/config/plugins/dockerMan/templates-user/my-Glovebox.xml` on your flash drive, then pick **Glovebox** from the template list under **Docker > Add Container**:
 
 ```
-https://raw.githubusercontent.com/au12/glovebox/main/unraid/glovebox.xml
+wget -O /boot/config/plugins/dockerMan/templates-user/my-Glovebox.xml https://raw.githubusercontent.com/au12/glovebox/main/templates/glovebox.xml
 ```
+
+New installs keep their data in `/mnt/user/appdata/glovebox`. Set **Disable account registration** to `true` (under Show more settings) if the server is reachable from the internet and you don't want a Create account page at all.
 
 ### Docker Compose
 
