@@ -1,0 +1,43 @@
+# Changelog
+
+## 0.1.0 (2026-11-15)
+
+The first Glovebox release: a redesigned [LubeLogger](https://github.com/hargata/lubelog) that puts what's due next front and center. It reads and writes the same data as LubeLogger 1.7.4, so an existing install can switch images (and back) without migrating anything.
+
+## Image
+
+```
+ghcr.io/au12/glovebox:0.1.0
+```
+
+Built for `linux/amd64` and `linux/arm64`. `latest` follows `main`.
+
+**Switching from LubeLogger on Unraid:** edit the container, change Repository to `ghcr.io/au12/glovebox:0.1.0` (or `:latest`), leave every path, port and variable as it is, and apply. A template for new installs is in `unraid/glovebox.xml`.
+
+## Highlights
+
+- **Garage** with a status summary, a "Needs attention" list across all vehicles, and cards showing each vehicle's odometer, status and next two due items.
+- **Vehicle overview** built around what's coming up: progress through each interval, an estimate of when it'll be due at your driving pace, and one-tap **Log it**, which prefills a service record and rolls recurring reminders forward. Recent history, key stats and pinned notes sit alongside. Charts moved to their own page.
+- **Phone-first layout**: bottom navigation, quick add for every record type, bottom-sheet forms and card lists.
+- **Notes** open as rendered markdown with their attachments.
+- **Attachment viewer** for images, PDFs, video, audio, text, CSV and markdown, right in the app.
+- **ntfy push notifications** for reminders: heads-up, due soon, urgent and overdue, each sent once per due cycle, with quiet hours and optional overdue repeats.
+- **Heads-up before it's due**: a default early warning in distance and days, adjustable or switchable off per reminder.
+- **Hide cost tracking** with one switch. Stored amounts are kept.
+- **Reorganized settings** that save as you go.
+- **Search removed**; tag filters remain.
+
+## Fixes
+
+- Custom urgency thresholds on one reminder no longer leak into the reminders after it.
+- Forms opened from links could reopen or clear themselves when two page loads overlapped.
+- Attachment names with apostrophes or ampersands no longer break previews or renames.
+- Numbers with several thousands separators sort correctly.
+- The reminder chart shows overdue in red.
+
+## Known limitations
+
+- Text added by Glovebox is English only.
+- The kiosk and error pages keep the LubeLogger look.
+
+Glovebox is MIT licensed, like LubeLogger by Hargata Softworks.
