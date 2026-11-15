@@ -15,6 +15,10 @@ namespace CarCareTracker.Helper
     public static class StaticHelper
     {
         public const string VersionNumber = "1.7.4";
+        /// <summary>
+        /// Glovebox release version (VersionNumber remains the upstream LubeLogger version it's based on).
+        /// </summary>
+        public const string GloveboxVersion = "0.1.0";
         private static string? _assetVersion;
         /// <summary>
         /// Glovebox: cache-busting token for static files. VersionNumber stays the upstream
@@ -40,7 +44,7 @@ namespace CarCareTracker.Helper
                     {
                         stamp = 0;
                     }
-                    _assetVersion = stamp > 0 ? $"{VersionNumber}-gb{stamp}" : $"{VersionNumber}-gb";
+                    _assetVersion = stamp > 0 ? $"{GloveboxVersion}.{stamp}" : GloveboxVersion;
                 }
                 return _assetVersion;
             }
@@ -351,7 +355,7 @@ namespace CarCareTracker.Helper
         }
         public static void InitMessage(IConfiguration config)
         {
-            Console.WriteLine($"Glovebox (based on LubeLogger {VersionNumber})");
+            Console.WriteLine($"Glovebox {GloveboxVersion} (based on LubeLogger {VersionNumber})");
             Console.WriteLine("GitHub: https://github.com/au12/glovebox");
             Console.WriteLine("LubeLogger documentation: https://docs.lubelogger.com");
             var mailConfig = config.GetSection("MailConfig").Get<MailConfig>();

@@ -60,8 +60,8 @@
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0F1620">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F1F3F6">
     <title>@(string.IsNullOrWhiteSpace(pageTitle) ? "Glovebox" : $"{pageTitle} - Glovebox")</title>
-    <link rel="icon" type="image/x-icon" href="~/favicon.ico">
-    <link rel="icon" type="image/svg+xml" href="~/defaults/glovebox_icon.svg">
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico?v=@StaticHelper.AssetVersion">
+    <link rel="icon" type="image/svg+xml" href="~/defaults/glovebox_favicon.svg?v=@StaticHelper.AssetVersion">
     <link rel="stylesheet" href="~/lib/fonts/fonts.css?v=@StaticHelper.AssetVersion" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-icons.css" />
@@ -72,8 +72,8 @@
     <link rel="stylesheet" href="~/css/loader.css" />
     <link rel="stylesheet" href="~/css/glovebox.css?v=@StaticHelper.AssetVersion" />
     <link rel="stylesheet" href="~/css/theme.css" media="screen" />
-    <link rel="icon" sizes="192x192" href="~/defaults/glovebox_icon_192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="~/defaults/glovebox_icon_180.png" />
+    <link rel="icon" sizes="192x192" href="~/defaults/glovebox_icon_192.png?v=@StaticHelper.AssetVersion" />
+    <link rel="apple-touch-icon" sizes="180x180" href="~/defaults/glovebox_icon_180.png?v=@StaticHelper.AssetVersion" />
     <link rel="manifest" href="~/manifest.json">
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/js/shared.js?v=@StaticHelper.AssetVersion"></script>

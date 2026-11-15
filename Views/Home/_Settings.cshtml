@@ -280,7 +280,7 @@
                             <div class="gb-row-text">
                                 <strong>@translator.Translate(userLanguage, "Example")</strong>
                                 <div class="gb-ntfy-preview mt-2">
-                                    <img class="gb-ntfy-icon" src="/defaults/glovebox_icon_192.png" alt="" />
+                                    <img class="gb-ntfy-icon" src="/defaults/glovebox_icon_192.png?v=@StaticHelper.AssetVersion" alt="" />
                                     <div>
                                         <strong>@translator.Translate(userLanguage, "Heads-up: Oil change due in 480") @distanceUnit</strong>
                                         <p>@translator.Translate(userLanguage, "2016 BMW 435i. Due at 49,000") @distanceUnit. @translator.Translate(userLanguage, "Odometer is at 48,520") @distanceUnit.</p>
@@ -468,10 +468,10 @@
                 <div class="gb-group">
                     <div class="gb-row">
                         <div class="gb-about">
-                            <img class="gb-app-icon" src="/defaults/glovebox_icon_192.png" alt="" />
+                            <img class="gb-app-icon" src="/defaults/glovebox_icon_192.png?v=@StaticHelper.AssetVersion" alt="" />
                             <div>
                                 <strong class="d-block" style="font-family:var(--gb-font-display);font-size:1.4rem;">Glovebox</strong>
-                                <span class="text-body-secondary">@translator.Translate(userLanguage, "Based on LubeLogger") @StaticHelper.VersionNumber</span>
+                                <span class="text-body-secondary">@translator.Translate(userLanguage, "Version") @StaticHelper.GloveboxVersion, @translator.Translate(userLanguage, "based on LubeLogger") @StaticHelper.VersionNumber</span>
                             </div>
                         </div>
                     </div>

@@ -51,6 +51,8 @@ The image is published to GitHub Container Registry for `linux/amd64` and `linux
 ghcr.io/au12/glovebox:latest
 ```
 
+`latest` follows the `main` branch. To stay on a release, use its version instead, for example `ghcr.io/au12/glovebox:0.1.0`. Releases are listed on the [releases page](https://github.com/au12/glovebox/releases).
+
 ### Switching an existing LubeLogger container on Unraid
 
 1. On the Docker tab, click the LubeLogger icon and choose **Edit**.
