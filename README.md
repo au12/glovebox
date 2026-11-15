@@ -1,52 +1,128 @@
-![image](https://github.com/hargata/lubelog/assets/155338622/545debcd-d80a-44da-b892-4c652ab0384a)
+<p align="center">
+  <img src="glovebox-icon.png" width="112" alt="Glovebox icon">
+</p>
 
-Self-Hosted, Open-Source, Web-Based Vehicle Maintenance and Fuel Mileage Tracker
+<h1 align="center">Glovebox</h1>
 
-Website: https://lubelogger.com
+<p align="center">A redesigned <a href="https://github.com/hargata/lubelog">LubeLogger</a> that puts what's due next front and center.<br>Self-hosted vehicle maintenance, reminders with ntfy push notifications, notes and records.</p>
 
-## Why
-Because nobody should have to deal with a homemade spreadsheet or a shoebox full of receipts when it comes to vehicle maintenance.
+![Garage, dark mode](docs/screenshots/desktop-garage-dark.png)
 
-## Showcase
-[Promotional Brochure](https://lubelogger.com/brochure.pdf)
+<table>
+  <tr>
+    <td width="25%"><img src="docs/screenshots/mobile-garage-dark.png" alt="Garage on a phone"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-overview-dark.png" alt="Vehicle overview on a phone"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-note-light.png" alt="Note with attachments on a phone"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-add-light.png" alt="Quick add on a phone"></td>
+  </tr>
+</table>
 
-[Screenshots](/docs/screenshots.md)
+![Vehicle overview, light mode](docs/screenshots/desktop-overview-light.png)
 
-## Demo
-Try it out before you download it! The live demo resets every 20 minutes.
+## What's different from LubeLogger
 
-[Live Demo](https://demo.lubelogger.com) Login using username "test" and password "1234"
+Glovebox runs on the same code base and reads and writes exactly the same data, so an existing LubeLogger install can switch to it (and back) without migrating anything.
 
-## Download
-LubeLogger is available as both a Docker Image and a Windows Standalone Executable.
+- **A garage that tells you what needs attention.** Each vehicle card shows its odometer, its status and the next two things due. Overdue, urgent and due-soon items across every vehicle are pulled to the top.
+- **A vehicle overview built around upcoming work.** The old dashboard of charts is replaced with what's coming up (with progress through each interval and an estimate of when it'll be due at your driving pace), recent history and the numbers that matter. Charts are still one tap away.
+- **Phone-first.** Bottom navigation, one-tap quick add for every record type, bottom-sheet forms and lists that turn into cards on small screens.
+- **Notes that read like notes.** Clicking a note shows the rendered markdown and its attachments. Editing is a button away instead of the default.
+- **Attachments open in the app.** Images, PDFs (rendered in the page, with zoom), video, audio, text, CSV and markdown open in a full-screen viewer with swipe and arrow-key navigation. Downloading is still there.
+- **Push notifications with ntfy.** Get a notification when a reminder is coming up, due soon, urgent or overdue, with quiet hours and optional repeats for overdue items.
+- **Heads-up before it's due.** Set a default early warning (for example 500 miles or 14 days) and override it per reminder, so you have time to order parts before the due date arrives.
+- **Hide cost tracking.** One switch in Settings hides every cost field, column, total and chart. Amounts you've already entered are kept.
+- **Settings that make sense.** Grouped into Appearance, Vehicles, Notifications, Units, Costs, Records, Automation, Server and About, and every change saves on its own.
+- **No search.** The global search, garage search and per-table search are gone. Tag filters remain.
 
-Read this [Getting Started Guide](https://docs.lubelogger.com/Installation/Getting%20Started) on how to download either of them
+Smaller fixes along the way:
 
-### Kubernetes Deployment
-[Helm Chart](https://artifacthub.io/packages/helm/anza-labs/lubelogger) provided by [Anza-Labs](https://github.com/anza-labs)
+- Custom urgency thresholds on one reminder no longer leak into the reminders listed after it.
+- Attachment names containing apostrophes or ampersands no longer break previews, renames or links.
+- Markdown in notes is sanitized before it's rendered.
+- Sorting by columns that contain numbers over 999,999 works.
+- Odometer readings are shown with thousands separators.
+- The reminder status chart uses the right colors (overdue is red, not grey).
 
-### Need Help?
-[Documentation](https://docs.lubelogger.com/)
+## Install
 
-[Troubleshooting Guide](https://docs.lubelogger.com/Installation/Troubleshooting)
+The image is published to GitHub Container Registry for `linux/amd64` and `linux/arm64`:
 
-[Search Existing Issues](https://github.com/hargata/lubelog/issues)
+```
+ghcr.io/au12/glovebox:latest
+```
 
-## Dependencies
-- [Bootstrap](https://github.com/twbs/bootstrap)
-- [LiteDB](https://github.com/mbdavid/litedb)
-- [Npgsql](https://github.com/npgsql/npgsql)
-- [Bootstrap-DatePicker](https://github.com/uxsolutions/bootstrap-datepicker)
-- [SweetAlert2](https://github.com/sweetalert2/sweetalert2)
-- [CsvHelper](https://github.com/JoshClose/CsvHelper)
-- [Chart.js](https://github.com/chartjs/Chart.js)
-- [Drawdown](https://github.com/adamvleggett/drawdown)
-- [MailKit](https://github.com/jstedfast/MailKit)
-- [Masonry](https://github.com/desandro/masonry)
-- [QRCode-Generator](https://github.com/kazuhikoarase/qrcode-generator)
+### Switching an existing LubeLogger container on Unraid
+
+1. On the Docker tab, click the LubeLogger icon and choose **Edit**.
+2. Change **Repository** from `ghcr.io/hargata/lubelogger:latest` to `ghcr.io/au12/glovebox:latest`.
+3. Leave every path, port and variable exactly as it is, then click **Apply**.
+
+Your database, photos, documents, translations and settings live in the mapped `/App/data` folder, and sign-in keys live in `/root/.aspnet/DataProtection-Keys`, so they carry over untouched. To go back, set the repository to `ghcr.io/hargata/lubelogger:latest` again. Notification settings and per-reminder heads-up values are extra fields that LubeLogger simply ignores.
+
+If you want a safety net, make a backup from LubeLogger's Settings page before you switch (in Glovebox it's **Settings > Server > Download backup**).
+
+### New install on Unraid
+
+Use the template in this repository. In the Docker tab, choose **Add Container** and paste this into **Template**, or save it to `/boot/config/plugins/dockerMan/templates-user/`:
+
+```
+https://raw.githubusercontent.com/au12/glovebox/main/unraid/glovebox.xml
+```
+
+### Docker Compose
+
+```yaml
+services:
+  app:
+    image: ghcr.io/au12/glovebox:latest
+    restart: unless-stopped
+    environment:
+      - LANG=en_US.UTF-8
+      - LC_ALL=en_US.UTF-8
+      - TZ=America/Chicago
+    volumes:
+      - data:/App/data
+      - keys:/root/.aspnet/DataProtection-Keys
+    ports:
+      - 8080:8080
+
+volumes:
+  data:
+  keys:
+```
+
+`docker-compose.postgresql.yml` and `docker-compose.traefik.yml` work the same way as upstream.
+
+## Reminder notifications
+
+1. Install the [ntfy app](https://ntfy.sh) and subscribe to a topic that's hard to guess, or use your own ntfy server.
+2. In Glovebox, open **Settings > Notifications**, turn on **Send reminder notifications**, and enter the server and topic. Add an access token or a username and password if your topic is protected.
+3. Set **Open this address when tapped** to the URL you use for Glovebox so a notification opens the right vehicle.
+4. Click **Send a test**.
+
+Glovebox checks reminders every 15 minutes and right after you add or change a record. Each stage (heads-up, due soon, urgent, overdue) is sent once per due cycle, so you won't get the same alert twice. When a recurring reminder rolls forward, the cycle starts over.
+
+The default heads-up applies to every reminder. To change it for one reminder, open the reminder and pick **Custom** under **Heads-up before it's due**, or **None** to skip the early warning. **Mute all notifications for this reminder** silences it completely.
+
+Every account sets up its own notifications. Tokens and passwords are stored on the server and never sent back to the browser.
+
+## Building it yourself
+
+```
+dotnet publish -c Release -o out
+cd out && ./CarCareTracker
+```
+
+or `docker build -t glovebox .`. Every push to `main` builds and publishes `latest` and a `sha-` tag through GitHub Actions. Tags named `v1.2.3` also publish `1.2.3` and `1.2`.
+
+If the package page on GitHub shows the image as private after the first build, open **Package settings** and change its visibility to public so Unraid can pull it without signing in.
+
+## Credits
+
+Glovebox is a fork of [LubeLogger](https://github.com/hargata/lubelog) by Hargata Softworks. LubeLogger's [documentation](https://docs.lubelogger.com) covers everything that works the same way, which is most of it: record types, the planner, inspections, supplies, the API, OpenID, PostgreSQL and backups.
+
+Built with [Bootstrap](https://github.com/twbs/bootstrap), [Bootstrap Icons](https://github.com/twbs/icons), [LiteDB](https://github.com/mbdavid/litedb), [Npgsql](https://github.com/npgsql/npgsql), [Bootstrap-DatePicker](https://github.com/uxsolutions/bootstrap-datepicker), [SweetAlert2](https://github.com/sweetalert2/sweetalert2), [CsvHelper](https://github.com/JoshClose/CsvHelper), [Chart.js](https://github.com/chartjs/Chart.js), [marked](https://github.com/markedjs/marked), [DOMPurify](https://github.com/cure53/DOMPurify), [PDF.js](https://github.com/mozilla/pdf.js), [MailKit](https://github.com/jstedfast/MailKit), [Masonry](https://github.com/desandro/masonry), [QRCode-Generator](https://github.com/kazuhikoarase/qrcode-generator) and the [Barlow](https://github.com/jpt/barlow) typeface.
 
 ## License
-MIT
 
-## Support
-To support this project, please see [Funding](https://docs.lubelogger.com/Misc/Funding)
+MIT, the same as LubeLogger. See [LICENSE](LICENSE).

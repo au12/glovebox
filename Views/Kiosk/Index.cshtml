@@ -1,13 +1,12 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @{
     ViewData["Title"] = "Kiosk";
 }
 @model KioskViewModel
 @section Scripts {
     <script src="~/lib/masonry/masonry.min.js"></script>
-    <script src="~/lib/drawdown/drawdown.js"></script>
     <script src="~/lib/signalr/signalr.min.js"></script>
-    <script src="~/js/kiosk.js?v=@StaticHelper.VersionNumber"></script>
+    <script src="~/js/kiosk.js?v=@StaticHelper.AssetVersion"></script>
 }
 <div class="no-top-pad">
     <div id="kioskContainer" class="container-fluid">

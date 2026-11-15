@@ -1,4 +1,4 @@
-﻿function showAddNoteModal() {
+function showAddNoteModal() {
     $.get('/Vehicle/GetAddNotePartialView', function (data) {
         if (data) {
             $("#noteModalContent").html(data);
@@ -44,9 +44,11 @@ function deleteNote(noteId) {
             $.post(`/Vehicle/DeleteNoteById?noteId=${noteId}`, function (data) {
                 if (data.success) {
                     hideAddNoteModal();
-                    successToast("Note Deleted");
+                    successToast("Note deleted");
                     var vehicleId = GetVehicleId().vehicleId;
-                    getVehicleNotes(vehicleId);
+                    if (!gbRefreshAfterChange()) {
+                        getVehicleNotes(vehicleId);
+                    }
                 } else {
                     errorToast(data.message);
                     $("#workAroundInput").hide();
@@ -68,10 +70,12 @@ function saveNoteToVehicle(isEdit) {
     //save to db.
     $.post('/Vehicle/SaveNoteToVehicleId', { note: formValues }, function (data) {
         if (data.success) {
-            successToast(isEdit ? "Note Updated" : "Note Added.");
+            successToast(isEdit ? "Note updated" : "Note added");
             hideAddNoteModal();
             saveScrollPosition();
-            getVehicleNotes(formValues.vehicleId);
+            if (!gbRefreshAfterChange()) {
+                getVehicleNotes(formValues.vehicleId);
+            }
         } else {
             errorToast(data.message);
         }

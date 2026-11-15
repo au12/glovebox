@@ -348,7 +348,7 @@ namespace CarCareTracker.Logic
                 {
                     var vehicleMileage = isCalendar ? 0 : GetMaxMileage(vehicle.Id);
                     var reminderUrgency = _reminderHelper.GetReminderRecordViewModels(vehicleReminders, vehicleMileage, DateTime.Now);
-                    reminderUrgency = reminderUrgency.Select(x => new ReminderRecordViewModel { Id = x.Id, Metric = x.Metric, Date = x.Date, Notes = x.Notes, Mileage = x.Mileage, Urgency = x.Urgency, Description = $"{vehicle.Year} {vehicle.Make} {vehicle.Model} #{StaticHelper.GetVehicleIdentifier(vehicle)} - {x.Description}" }).ToList();
+                    reminderUrgency = reminderUrgency.Select(x => new ReminderRecordViewModel { Id = x.Id, VehicleId = vehicle.Id, IsRecurring = x.IsRecurring, Metric = x.Metric, Date = x.Date, Notes = x.Notes, Mileage = x.Mileage, Urgency = x.Urgency, Description = $"{vehicle.Year} {vehicle.Make} {vehicle.Model} #{StaticHelper.GetVehicleIdentifier(vehicle)} - {x.Description}" }).ToList();
                     reminders.AddRange(reminderUrgency);
                 }
             }

@@ -2,7 +2,7 @@
 
 services:
   app:
-    image: ghcr.io/hargata/lubelogger:latest
+    image: ghcr.io/au12/glovebox:latest
     restart: unless-stopped
     # volumes used to keep data persistent
     volumes:

@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Glovebox</Name>
+  <Repository>ghcr.io/au12/glovebox:latest</Repository>
+  <Registry>https://github.com/au12/glovebox/pkgs/container/glovebox</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/au12/glovebox/issues</Support>
+  <Project>https://github.com/au12/glovebox</Project>
+  <Overview>Glovebox is a redesigned LubeLogger: a self-hosted vehicle maintenance tracker focused on what's coming up next, with a mobile-first interface, rendered markdown notes, an in-app attachment viewer and ntfy push notifications for reminders (with an adjustable heads-up before things are due).[br][br]It uses the same data format as LubeLogger. To switch an existing LubeLogger container, keep your path mappings exactly as they are and only change the Repository to ghcr.io/au12/glovebox:latest.</Overview>
+  <Category>Tools: Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/au12/glovebox/main/unraid/glovebox.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/au12/glovebox/main/glovebox-icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Data" Target="/App/data" Default="/mnt/user/appdata/lubelogger/data" Mode="rw" Description="Database, photos, attachments, translations and settings. Point this at your existing LubeLogger data folder to keep everything." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/lubelogger/data</Config>
+  <Config Name="Sign-in keys" Target="/root/.aspnet/DataProtection-Keys" Default="/mnt/user/appdata/lubelogger/keys" Mode="rw" Description="Encryption keys for sign-in cookies. Reuse your existing folder so everyone stays signed in." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/lubelogger/keys</Config>
+  <Config Name="LANG" Target="LANG" Default="en_US.UTF-8" Mode="" Description="Locale for dates, numbers and currency, for example en_US.UTF-8 or en_GB.UTF-8." Type="Variable" Display="always" Required="false" Mask="false">en_US.UTF-8</Config>
+  <Config Name="LC_ALL" Target="LC_ALL" Default="en_US.UTF-8" Mode="" Description="Should match LANG." Type="Variable" Display="always" Required="false" Mask="false">en_US.UTF-8</Config>
+  <Config Name="Server URL (optional)" Target="LUBELOGGER_DOMAIN" Default="" Mode="" Description="The address you use to reach Glovebox, for example https://glovebox.example.com. Used for links in emails and notifications." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>

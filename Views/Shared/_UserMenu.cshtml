@@ -1,0 +1,34 @@
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@{
+    var userLanguage = config.GetUserConfig(User).UserLanguage;
+    var isLoggedIn = User.IsInRole("CookieAuth") || User.IsInRole("APIAuth");
+}
+@if (isLoggedIn)
+{
+    <div class="dropdown">
+        <button class="gb-navlink" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@translator.Translate(userLanguage, "Account")">
+            <span class="gb-avatar">@GloveboxFormat.Initials(User.Identity?.Name)</span>
+            <span class="gb-hide-sm">@User.Identity?.Name</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><h6 class="dropdown-header">@translator.Translate(userLanguage, "Signed in as") @User.Identity?.Name</h6></li>
+            @if (User.IsInRole(nameof(UserData.IsAdmin)))
+            {
+                <li><a class="dropdown-item" href="/Admin"><i class="bi bi-people"></i>@translator.Translate(userLanguage, "Admin Panel")</a></li>
+            }
+            @if (User.IsInRole(nameof(UserData.IsRootUser)))
+            {
+                <li><button class="dropdown-item" type="button" onclick="showRootAccountInformationModal()"><i class="bi bi-person-gear"></i>@translator.Translate(userLanguage, "Profile")</button></li>
+            }
+            else
+            {
+                <li><button class="dropdown-item" type="button" onclick="showAccountInformationModal()"><i class="bi bi-person-gear"></i>@translator.Translate(userLanguage, "Profile")</button></li>
+                <li><button class="dropdown-item" type="button" onclick="showHouseholdModal()"><i class="bi bi-house"></i>@translator.Translate(userLanguage, "Household")</button></li>
+            }
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" type="button" onclick="performLogOut()"><i class="bi bi-box-arrow-right"></i>@translator.Translate(userLanguage, "Log out")</button></li>
+        </ul>
+    </div>
+}

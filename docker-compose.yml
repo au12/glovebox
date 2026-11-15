@@ -2,8 +2,14 @@
 
 services:
   app:
-    image: ghcr.io/hargata/lubelogger:latest
+    image: ghcr.io/au12/glovebox:latest
     restart: unless-stopped
+    environment:
+      # culture used for dates, numbers and currency
+      - LANG=en_US.UTF-8
+      - LC_ALL=en_US.UTF-8
+      # local time zone, used for reminder dates and notification quiet hours
+      - TZ=America/Chicago
     # volumes used to keep data persistent
     volumes:
       - data:/App/data

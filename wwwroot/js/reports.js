@@ -1,4 +1,4 @@
-﻿function getYear() {
+function getYear() {
     return $("#yearOption").val() ?? '0';
 }
 function getAndValidateSelectedColumns() {
@@ -215,7 +215,7 @@ function refreshBarChart() {
     if ($("#taxExpenseCheck").is(":checked")) {
         selectedMetrics.push('TaxRecord');
     }
-    if ($("#odometerExpenseCheck").is(":checked")) {
+    if ($("#odometerExpenseCheck").is(":checked") || getGlobalConfig().hideCosts) {
         selectedMetrics.push('OdometerRecord');
     }
 

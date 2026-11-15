@@ -1,23 +1,96 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
+@inject ITranslationHelper translator
 @model List<ReminderRecordViewModel>
 @{
     var userConfig = config.GetUserConfig(User);
+    var userLanguage = userConfig.UserLanguage;
+    var vehicles = ViewData["Vehicles"] as Dictionary<int, Vehicle> ?? new Dictionary<int, Vehicle>();
+    var multipleVehicles = Model.Select(x => x.VehicleId).Distinct().Count() > 1;
+    string PlainDescription(ReminderRecordViewModel reminder)
+    {
+        if (vehicles.TryGetValue(reminder.VehicleId, out var vehicle))
+        {
+            var prefix = $"{vehicle.Year} {vehicle.Make} {vehicle.Model} #{StaticHelper.GetVehicleIdentifier(vehicle)} - ";
+            if (reminder.Description.StartsWith(prefix))
+            {
+                return reminder.Description.Substring(prefix.Length);
+            }
+        }
+        return reminder.Description;
+    }
+    string ChipText(ReminderRecordViewModel reminder)
+    {
+        var description = PlainDescription(reminder);
+        if (multipleVehicles && vehicles.TryGetValue(reminder.VehicleId, out var vehicle))
+        {
+            return $"{vehicle.Model}: {description}";
+        }
+        return description;
+    }
+    var ordered = Model.OrderBy(x => x.Date).ToList();
+    var overdueCount = Model.Count(x => x.Urgency == ReminderUrgency.PastDue);
+    var nextThirty = Model.Count(x => x.Date.Date >= DateTime.Today && x.Date.Date <= DateTime.Today.AddDays(30));
+    var groups = ordered.GroupBy(x => x.Date.Date < DateTime.Today ? DateTime.MinValue : new DateTime(x.Date.Year, x.Date.Month, 1)).ToList();
 }
 <script>
     var eventDates = [];
     var groupedDates = [];
-    @foreach(ReminderRecordViewModel reminderRecord in Model)
+    @foreach (ReminderRecordViewModel reminderRecord in Model)
     {
-        @:eventDates.push({ id: @reminderRecord.Id, date: decodeHTMLEntities('@StaticHelper.GetEpochFromDateTime(reminderRecord.Date)'), description: decodeHTMLEntities('@reminderRecord.Description'), urgency: decodeHTMLEntities('@reminderRecord.Urgency.ToString()') });
+        @:eventDates.push({ id: @reminderRecord.Id, date: decodeHTMLEntities('@StaticHelper.GetEpochFromDateTime(reminderRecord.Date)'), description: decodeHTMLEntities('@ChipText(reminderRecord)'), urgency: decodeHTMLEntities('@reminderRecord.Urgency.ToString()') });
     }
 </script>
-<div class="d-flex vehicleTabPane">
-    <div class="row vehicleDetailTabContainer">
-        <div class="col-12 reminderCalendarView d-flex flex-column">
-            <div class="reminderCalendarViewContent flex-grow-1">
+<div class="gb-page">
+    <div class="gb-garage-head">
+        <div>
+            <h1>@translator.Translate(userLanguage, "Calendar")</h1>
+            <div class="gb-status-line">
+                @if (overdueCount > 0)
+                {
+                    <span class="gb-status-item"><span class="gb-dot gb-dot--overdue"></span>@overdueCount @translator.Translate(userLanguage, "overdue")</span>
+                }
+                <span class="gb-status-item">@nextThirty @translator.Translate(userLanguage, nextThirty == 1 ? "reminder in the next 30 days" : "reminders in the next 30 days")</span>
             </div>
         </div>
+    </div>
+    <div class="gb-cal-layout">
+        <div class="gb-cal-month">
+            <div class="reminderCalendarViewContent"></div>
+            <p class="gb-cal-note">@translator.Translate(userLanguage, "Shows reminders that have a due date. Mileage-only reminders live on each vehicle's overview.")</p>
+        </div>
+        <aside class="gb-panel gb-agenda" aria-label="@translator.Translate(userLanguage, "Agenda")">
+            <h3>@translator.Translate(userLanguage, "Agenda")</h3>
+            @if (!ordered.Any())
+            {
+                <p class="text-body-secondary m-0">@translator.Translate(userLanguage, "No dated reminders yet. Add one from a vehicle's Reminders section.")</p>
+            }
+            @foreach (var group in groups)
+            {
+                <div class="gb-agenda-group">
+                    <h4>@(group.Key == DateTime.MinValue ? translator.Translate(userLanguage, "Overdue") : group.Key.ToString("MMMM yyyy"))</h4>
+                    <ul class="list-unstyled m-0">
+                        @foreach (var reminder in group)
+                        {
+                            vehicles.TryGetValue(reminder.VehicleId, out var vehicle);
+                            <li>
+                                <button type="button" class="gb-agenda-item" onclick="showCalendarReminderModal(@reminder.Id)">
+                                    <span class="gb-agenda-date"><span>@reminder.Date.ToString("MMM")</span><strong>@reminder.Date.Day</strong></span>
+                                    <span class="gb-agenda-body">
+                                        <strong>@PlainDescription(reminder)</strong>
+                                        @if (vehicle != null)
+                                        {
+                                            <small>@GloveboxFormat.VehicleName(vehicle)</small>
+                                        }
+                                    </span>
+                                    <span class="gb-pill gb-pill--@GloveboxFormat.StatusClass(reminder.Urgency)">@translator.Translate(userLanguage, GloveboxFormat.StatusLabel(reminder.Urgency))</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </aside>
     </div>
 </div>
 <div class="modal fade" data-bs-focus="false" id="reminderRecordCalendarModal" tabindex="-1" role="dialog" aria-hidden="true" @StaticHelper.GetStaticModalAttribute(userConfig.EnablePersistentDialog)>

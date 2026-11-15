@@ -1,4 +1,4 @@
-﻿$(function () {
+$(function () {
     //bind functions on page load
     var vehicleId = GetVehicleId().vehicleId;
     //bind tabs
@@ -209,11 +209,20 @@ function getVehicleEquipmentRecords(vehicleId) {
         }
     });
 }
+//Glovebox: the first tab is the overview; the original charts live one click deeper.
 function getVehicleReport(vehicleId) {
-    $.get(`/Vehicle/GetReportPartialView?vehicleId=${vehicleId}`, function (data) {
+    $.get(`/Vehicle/GetVehicleOverview?vehicleId=${vehicleId}`, function (data) {
         if (data) {
             $("#report-tab-pane").html(data);
             getVehicleHaveImportantReminders(vehicleId);
+        }
+    })
+}
+function getVehicleCharts(vehicleId) {
+    $.get(`/Vehicle/GetReportPartialView?vehicleId=${vehicleId}`, function (data) {
+        if (data) {
+            $("#report-tab-pane").html(`<button type="button" class="gb-back-link" onclick="getVehicleReport(${vehicleId})"><i class="bi bi-arrow-left"></i>Overview</button><h1 class="mb-3">Charts &amp; reports</h1>` + data);
+            window.scrollTo({ top: 0, behavior: 'auto' });
         }
     })
 }
@@ -266,20 +275,26 @@ function showAddReminderModal(reminderModalInput) {
 }
 function getVehicleHaveImportantReminders(vehicleId) {
     setTimeout(function () {
-        $.get(`/Vehicle/GetVehicleHaveUrgentOrPastDueReminders?vehicleId=${vehicleId}`, function (data) {
-            if (data) {
-                $(".reminderBell").removeClass("bi-bell");
-                $(".reminderBell").addClass("bi-bell-fill");
-                $(".reminderBell").addClass("text-warning");
-                $(".reminderBellDiv").addClass("bell-shake");
+        $.get(`/Vehicle/GetVehicleReminderSummary?vehicleId=${vehicleId}`, function (data) {
+            let needsAttention = data.overdue + data.urgent + data.dueSoon;
+            let count = $('#gbReminderCount');
+            let dot = $('#gbReminderDot');
+            count.removeClass('overdue soon');
+            dot.removeClass('gb-dot--overdue gb-dot--soon gb-dot');
+            if (needsAttention > 0) {
+                count.text(needsAttention).removeClass('d-none').addClass(data.overdue > 0 ? 'overdue' : 'soon');
+                dot.removeClass('d-none').addClass('gb-dot ' + (data.overdue > 0 ? 'gb-dot--overdue' : 'gb-dot--soon'));
             } else {
-                $(".reminderBellDiv").removeClass("bell-shake");
-                $(".reminderBell").removeClass("bi-bell-fill");
-                $(".reminderBell").addClass("bi-bell");
-                $(".reminderBell").removeClass("text-warning");
+                count.addClass('d-none');
+                dot.addClass('d-none');
+            }
+            if (data.overdue + data.urgent > 0) {
+                $(".reminderBell").removeClass("bi-bell").addClass("bi-bell-fill");
+            } else {
+                $(".reminderBell").removeClass("bi-bell-fill").addClass("bi-bell");
             }
         });
-    }, 500);
+    }, 300);
 }
 function moveRecord(recordId, source, dest) {
     $("#workAroundInput").show();
@@ -691,51 +706,8 @@ function getLastOdometerReadingAndIncrement(odometerFieldName) {
     });
 }
 
-function showGlobalSearch() {
-    $('#globalSearchModal').modal('show');
-    restoreGlobalSearchSettings();
-}
-function hideGlobalSearch() {
-    $('#globalSearchModal').modal('hide');
-}
-function saveGlobalSearchSettings() {
-    let globalSearchSettings = {
-        incrementalSearch: $('#globalSearchAutoSearchCheck').is(':checked'),
-        caseSensitive: $('#globalSearchCaseSensitiveCheck').is(':checked')
-    };
-    localStorage.setItem('globalSearchSettings', JSON.stringify(globalSearchSettings));
-}
-function restoreGlobalSearchSettings() {
-    let globalSearchSettings = localStorage.getItem('globalSearchSettings');
-    if (globalSearchSettings != null) {
-        let parsedGlobalSearchSettings = JSON.parse(globalSearchSettings);
-        $('#globalSearchAutoSearchCheck').attr('checked', parsedGlobalSearchSettings.incrementalSearch);
-        $('#globalSearchCaseSensitiveCheck').attr('checked', parsedGlobalSearchSettings.caseSensitive);
-    }
-}
-function performGlobalSearch() {
-    var searchQuery = $('#globalSearchInput').val();
-    if (searchQuery.trim() == '') {
-        $('#globalSearchInput').addClass('is-invalid');
-    } else {
-        $('#globalSearchInput').removeClass('is-invalid');
-    }
-    let caseSensitiveSearch = $("#globalSearchCaseSensitiveCheck").is(':checked');
-    saveGlobalSearchSettings();
-    $.post('/Vehicle/SearchRecords', { vehicleId: GetVehicleId().vehicleId, searchQuery: searchQuery, caseSensitive: caseSensitiveSearch }, function (data) {
-        $('#globalSearchModalResults').html(data);
-    });
-}
-function handleGlobalSearchKeyPress(event) {
-    if ($('#globalSearchAutoSearchCheck').is(':checked')) {
-        setDebounce(performGlobalSearch);
-    } else if (event.keyCode == 13) {
-        performGlobalSearch();
-    }
-}
-
+//Used by record-link attachments to jump to the linked record.
 function loadGlobalSearchResult(recordId, recordType) {
-    hideGlobalSearch();
     $.post(`/Vehicle/CheckRecordExist?vehicleId=${GetVehicleId().vehicleId}&importMode=${recordType}&recordId=${recordId}`, function (data) {
         if (data.success) {
             switch (recordType) {

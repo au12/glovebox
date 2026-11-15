@@ -1,4 +1,4 @@
-﻿using CarCareTracker.Filter;
+using CarCareTracker.Filter;
 using CarCareTracker.Helper;
 using CarCareTracker.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -57,6 +57,24 @@ namespace CarCareTracker.Controllers
                 return Forbid();
             }
             return PartialView("Note/_NoteModal", result);
+        }
+        /// <summary>
+        /// Glovebox: read-only rendering of a note with its attachments.
+        /// </summary>
+        [HttpGet]
+        public IActionResult GetNoteForViewById(int noteId)
+        {
+            var result = _noteDataAccess.GetNoteById(noteId);
+            if (result == null || result.Id == default)
+            {
+                return NotFound();
+            }
+            //security check.
+            if (!_userLogic.UserCanEditVehicle(GetUserID(), result.VehicleId, HouseholdPermission.View))
+            {
+                return Forbid();
+            }
+            return PartialView("Note/_NoteViewer", result);
         }
         private OperationResponse DeleteNoteWithChecks(int noteId)
         {

@@ -1,0 +1,76 @@
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@model DueItem
+@{
+    var userConfig = config.GetUserConfig(User);
+    var userLanguage = userConfig.UserLanguage;
+    var unit = ViewData["DistanceUnit"] as string ?? "mi";
+    var canLog = ViewData["CanLog"] is bool b && b;
+    var statusClass = GloveboxFormat.StatusClass(Model);
+    var gaugeClass = statusClass == "info" ? "ok" : statusClass;
+    var descriptionJs = System.Text.Json.JsonSerializer.Serialize(Model.Description);
+}
+<div class="gb-due-item" onclick="showEditReminderRecordModal(@Model.Id)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'){showEditReminderRecordModal(@Model.Id)}">
+    <div class="gb-due-item-title">
+        <span class="gb-pill gb-pill--@statusClass">@translator.Translate(userLanguage, GloveboxFormat.StatusLabel(Model))</span>
+        <strong>@Model.Description</strong>
+        @if (Model.IsRecurring)
+        {
+            <i class="bi bi-arrow-repeat text-body-secondary" title="@translator.Translate(userLanguage, "Recurring")"></i>
+        }
+        @if (Model.MuteNotifications)
+        {
+            <i class="bi bi-bell-slash text-body-secondary" title="@translator.Translate(userLanguage, "Notifications muted")"></i>
+        }
+    </div>
+    <div class="gb-due-item-side">
+        <div class="gb-due-item-due">
+            @GloveboxFormat.DueHeadline(Model, unit)
+            @if (Model.HasOdometer && !Model.HasDate && Model.EstimatedDays.HasValue && Model.Urgency != ReminderUrgency.PastDue && Model.EstimatedDays.Value > 0)
+            {
+                <small>@($"about {GloveboxFormat.InDays(Model.EstimatedDays.Value).Replace("in ", "")} at your pace")</small>
+            }
+        </div>
+        @if (canLog)
+        {
+            <button type="button" class="btn btn-secondary btn-sm" onclick='event.stopPropagation(); gbLogReminder(@Model.Id, @Html.Raw(descriptionJs), @Model.IsRecurring.ToString().ToLower())' title="@translator.Translate(userLanguage, "Log the service for this reminder")"><i class="bi bi-check2"></i><span class="gb-hide-sm">@translator.Translate(userLanguage, "Log it")</span></button>
+        }
+        else if (Model.IsRecurring)
+        {
+            <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); gbMarkReminderDone(@Model.Id)" title="@translator.Translate(userLanguage, "Mark done and roll forward")"><i class="bi bi-check2"></i><span class="gb-hide-sm">@translator.Translate(userLanguage, "Done")</span></button>
+        }
+    </div>
+    <div class="gb-due-item-meta">
+        @if (Model.HasOdometer)
+        {
+            <span><i class="bi bi-speedometer"></i>@translator.Translate(userLanguage, "at") @GloveboxFormat.Distance(Model.Mileage, unit)</span>
+        }
+        @if (Model.HasDate)
+        {
+            <span><i class="bi bi-calendar-event"></i>@GloveboxFormat.ShortDate(Model.Date)</span>
+        }
+        @if (Model.InHeadsUpWindow || Model.Urgency == ReminderUrgency.NotUrgent)
+        {
+            var headsUpParts = new List<string>();
+            if (Model.HasOdometer && Model.EffectiveHeadsUpDistance > 0) { headsUpParts.Add(GloveboxFormat.Distance(Model.EffectiveHeadsUpDistance, unit)); }
+            if (Model.HasDate && Model.EffectiveHeadsUpDays > 0) { headsUpParts.Add($"{Model.EffectiveHeadsUpDays} days"); }
+            if (headsUpParts.Any())
+            {
+                <span class="text-info"><i class="bi bi-bell"></i>@translator.Translate(userLanguage, "Heads-up") @string.Join(" / ", headsUpParts) @translator.Translate(userLanguage, "early")</span>
+            }
+        }
+    </div>
+    @if (Model.Progress.HasValue)
+    {
+        var width = Math.Round(Model.Progress.Value * 100, 1);
+        <div class="gb-gauge gb-gauge--@gaugeClass" role="img" aria-label="@($"{width}% of the interval used")">
+            <div class="gb-gauge-fill" style="width:@(width.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div>
+            <div class="gb-gauge-ticks"></div>
+            @if (Model.HeadsUpMark.HasValue)
+            {
+                <div class="gb-gauge-mark" style="left:@((Math.Round(Model.HeadsUpMark.Value * 100, 1)).ToString(System.Globalization.CultureInfo.InvariantCulture))%" title="@translator.Translate(userLanguage, "Heads-up point")"></div>
+            }
+        </div>
+    }
+</div>

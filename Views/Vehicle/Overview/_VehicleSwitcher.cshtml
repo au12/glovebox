@@ -1,0 +1,28 @@
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@model List<VehicleSwitcherItem>
+@{
+    var userLanguage = config.GetUserConfig(User).UserLanguage;
+    var currentId = ViewData["CurrentVehicleId"] is int id ? id : 0;
+}
+<h6 class="dropdown-header">@translator.Translate(userLanguage, "Your vehicles")</h6>
+@foreach (var item in Model)
+{
+    <a class="dropdown-item @(item.Id == currentId ? "active" : "")" href="/Vehicle/Index?vehicleId=@item.Id" @(item.Id == currentId ? "aria-current=page" : "")>
+        @if (GloveboxFormat.HasPhoto(item.ImageLocation))
+        {
+            <img src="@item.ImageLocation" alt="" style="@(item.IsSold ? "filter:grayscale(1)" : "")" />
+        }
+        else
+        {
+            <span class="gb-photo-empty gb-photo-empty--thumb" aria-hidden="true"><i class="bi bi-car-front"></i></span>
+        }
+        <span>
+            @item.Name
+            <small>@(item.IsSold ? translator.Translate(userLanguage, "Sold") : item.Identifier)</small>
+        </span>
+    </a>
+}
+<div class="dropdown-divider"></div>
+<a class="dropdown-item" href="/Home"><i class="bi bi-car-front"></i>@translator.Translate(userLanguage, "All vehicles")</a>

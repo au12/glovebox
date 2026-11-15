@@ -1,0 +1,53 @@
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@model Note
+@{
+    var userConfig = config.GetUserConfig(User);
+    var userLanguage = userConfig.UserLanguage;
+    var noViewData = new ViewDataDictionary(ViewData) { { "Editable", false } };
+}
+<div class="modal-header">
+    <div class="d-flex flex-column gap-1" style="min-width:0;">
+        <h5 class="modal-title">
+            @if (Model.Pinned)
+            {
+                <i class="bi bi-pin-fill text-warning" title="@translator.Translate(userLanguage, "Pinned")"></i>
+            }
+            <span>@Model.Description</span>
+        </h5>
+        @if (Model.Tags.Any() || Model.ExtraFields.Any(x => !string.IsNullOrWhiteSpace(x.Value)))
+        {
+            <div class="gb-note-view-meta">
+                @foreach (var tag in Model.Tags)
+                {
+                    <span class="gb-pill">@tag</span>
+                }
+                @foreach (var field in Model.ExtraFields.Where(x => !string.IsNullOrWhiteSpace(x.Value)))
+                {
+                    <span class="gb-pill">@field.Name: @field.Value</span>
+                }
+            </div>
+        }
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@translator.Translate(userLanguage, "Close")"></button>
+</div>
+<div class="modal-body">
+    <textarea class="d-none" data-gb-markdown-source="#gbNoteRendered" aria-hidden="true">@Model.NoteText</textarea>
+    <article class="gb-markdown" id="gbNoteRendered"></article>
+    @if (Model.Files.Any())
+    {
+        <div class="gb-section-label">@translator.Translate(userLanguage, "Attachments") (@Model.Files.Count)</div>
+        <ul class="gb-files" data-gb-gallery>
+            @foreach (var file in Model.Files)
+            {
+                <partial name="_FileCard" model="file" view-data="noViewData" />
+            }
+        </ul>
+    }
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-ghost me-auto" onclick="gbTogglePin(@Model.Id)"><i class="bi @(Model.Pinned ? "bi-pin-angle" : "bi-pin-angle-fill")"></i>@translator.Translate(userLanguage, Model.Pinned ? "Unpin" : "Pin")</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@translator.Translate(userLanguage, "Close")</button>
+    <button type="button" class="btn btn-primary" onclick="gbEditNoteFromViewer(@Model.Id)"><i class="bi bi-pencil"></i>@translator.Translate(userLanguage, "Edit")</button>
+</div>

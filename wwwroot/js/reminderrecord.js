@@ -1,4 +1,4 @@
-﻿function showEditReminderRecordModal(reminderId) {
+function showEditReminderRecordModal(reminderId) {
     $.get(`/Vehicle/GetReminderRecordForEditById?reminderRecordId=${reminderId}`, function (data) {
         if (data) {
             $("#reminderRecordModalContent").html(data); 
@@ -90,9 +90,11 @@ function deleteReminderRecord(reminderRecordId, e) {
             $.post(`/Vehicle/DeleteReminderRecordById?reminderRecordId=${reminderRecordId}`, function (data) {
                 if (data.success) {
                     hideAddReminderRecordModal();
-                    successToast("Reminder Deleted");
+                    successToast("Reminder deleted");
                     var vehicleId = GetVehicleId().vehicleId;
-                    getVehicleReminders(vehicleId);
+                    if (!gbRefreshAfterChange()) {
+                        getVehicleReminders(vehicleId);
+                    }
                 } else {
                     errorToast(data.message);
                     $("#workAroundInput").hide();
@@ -122,9 +124,11 @@ function saveReminderRecordToVehicle(isEdit) {
     //save to db.
     $.post('/Vehicle/SaveReminderRecordToVehicleId', { reminderRecord: formValues }, function (data) {
         if (data.success) {
-            successToast(isEdit ? "Reminder Updated" : "Reminder Added.");
+            successToast(isEdit ? "Reminder updated" : "Reminder added");
             hideAddReminderRecordModal();
-            if (!getReminderRecordModelData().createdFromRecord) {
+            if (gbRefreshAfterChange()) {
+                //overview refreshed
+            } else if (!getReminderRecordModelData().createdFromRecord) {
                 saveScrollPosition();
                 getVehicleReminders(formValues.vehicleId);
             } else {
@@ -147,12 +151,24 @@ function appendMileageToOdometer(increment) {
     $("#reminderMileage").val(reminderMileage);
 }
 
+//Glovebox: show only the fields that matter for the chosen metric
+function gbReminderMetricChanged() {
+    var metric = $('#reminderOptions input[name="reminderMetricOptions"]:checked').val();
+    $('#gbReminderOdometerField').toggleClass('d-none', metric == "Date");
+    $('#gbReminderDateField').toggleClass('d-none', metric == "Odometer");
+    enableRecurring();
+}
+function gbReminderEarlyChanged() {
+    var mode = $('input[name="reminderEarlyNotice"]:checked').val();
+    $('#gbEarlyCustomFields').toggleClass('d-none', mode != "Custom");
+    $('#gbEarlyDefaultHint').toggleClass('d-none', mode != "Default");
+}
 function enableRecurring() {
     var reminderIsRecurring = $("#reminderIsRecurring").is(":checked");
     if (reminderIsRecurring) {
         $("#reminderFixedIntervals").attr('disabled', false);
         //check selected metric
-        var reminderMetric = $('#reminderOptions input:radio:checked').val();
+        var reminderMetric = $('#reminderOptions input[name="reminderMetricOptions"]:checked').val();
         if (reminderMetric == "Date") {
             $("#reminderRecurringMonth").attr('disabled', false);
             $("#reminderRecurringMileage").attr('disabled', true);
@@ -177,8 +193,10 @@ function markDoneReminderRecord(reminderRecordId, e) {
     var vehicleId = GetVehicleId().vehicleId;
     $.post(`/Vehicle/PushbackRecurringReminderRecord?reminderRecordId=${reminderRecordId}`, function (data) {
         if (data.success) {
-            successToast("Reminder Updated");
-            getVehicleReminders(vehicleId);
+            successToast("Reminder rolled forward");
+            if (!gbRefreshAfterChange()) {
+                getVehicleReminders(vehicleId);
+            }
         } else {
             errorToast(data.message);
         }
@@ -190,7 +208,11 @@ function getAndValidateReminderRecordValues() {
     var reminderMileage = parseInt(globalParseFloat($("#reminderMileage").val())).toString();
     var reminderDescription = $("#reminderDescription").val();
     var reminderNotes = $("#reminderNotes").val();
-    var reminderOption = $('#reminderOptions input:radio:checked').val();
+    var reminderOption = $('#reminderOptions input[name="reminderMetricOptions"]:checked').val();
+    var reminderEarlyNotice = $('input[name="reminderEarlyNotice"]:checked').val() || "Default";
+    var reminderEarlyDistance = parseInt(globalParseFloat($("#reminderEarlyDistance").val() || "0"));
+    var reminderEarlyDays = parseInt(globalParseFloat($("#reminderEarlyDays").val() || "0"));
+    var reminderMuteNotifications = $("#reminderMuteNotifications").is(":checked");
     var reminderIsRecurring = $("#reminderIsRecurring").is(":checked");
     var reminderRecurringMonth = $("#reminderRecurringMonth").val();
     var reminderRecurringMileage = $("#reminderRecurringMileage").val();
@@ -252,6 +274,20 @@ function getAndValidateReminderRecordValues() {
             $("#reminderVeryUrgentDistance").removeClass("is-invalid");
         }
     }
+    if (reminderEarlyNotice == "Custom") {
+        if (isNaN(reminderEarlyDistance) || reminderEarlyDistance < 0) {
+            hasError = true;
+            $("#reminderEarlyDistance").addClass("is-invalid");
+        } else {
+            $("#reminderEarlyDistance").removeClass("is-invalid");
+        }
+        if (isNaN(reminderEarlyDays) || reminderEarlyDays < 0) {
+            hasError = true;
+            $("#reminderEarlyDays").addClass("is-invalid");
+        } else {
+            $("#reminderEarlyDays").removeClass("is-invalid");
+        }
+    }
     if (reminderOption == undefined) {
         hasError = true;
         $("#reminderMetricDate").addClass("is-invalid");
@@ -286,7 +322,11 @@ function getAndValidateReminderRecordValues() {
         customMileageInterval: customMileageInterval,
         customMonthInterval: customMonthInterval,
         customMonthIntervalUnit: customMonthIntervalUnit,
-        tags: reminderTags
+        tags: reminderTags,
+        earlyNotice: reminderEarlyNotice,
+        earlyNoticeDistance: isNaN(reminderEarlyDistance) ? 0 : reminderEarlyDistance,
+        earlyNoticeDays: isNaN(reminderEarlyDays) ? 0 : reminderEarlyDays,
+        muteNotifications: reminderMuteNotifications
     }
 }
 function createPlanRecordFromReminder(reminderRecordId) {
@@ -341,24 +381,23 @@ function filterReminderTable(sender) {
 }
 function updateReminderAggregateLabels() {
     //update main count
-    var newCount = $("[data-record-type='cost']").parent(":not('.override-hide')").length;
+    var visibleRows = $("#reminder-tab-pane tbody tr:not('.override-hide')");
     var countLabel = $("[data-aggregate-type='count']");
-    countLabel.text(`${countLabel.text().split(':')[0]}: ${newCount}`);
-    //update labels
-    //paste due
-    var pastDueCount = $("tr td span.badge.text-bg-secondary").parents("tr:not('.override-hide')").length;
-    var pastDueLabel = $('[data-aggregate-type="pastdue-count"]');
-    pastDueLabel.text(`${pastDueLabel.text().split(':')[0]}: ${pastDueCount}`);
-    //very urgent
-    var veryUrgentCount = $("tr td span.badge.text-bg-danger").parents("tr:not('.override-hide')").length;
-    var veryUrgentLabel = $('[data-aggregate-type="veryurgent-count"]');
-    veryUrgentLabel.text(`${veryUrgentLabel.text().split(':')[0]}: ${veryUrgentCount}`);
-    //urgent
-    var urgentCount = $("tr td span.badge.text-bg-warning").parents("tr:not('.override-hide')").length;
-    var urgentLabel = $('[data-aggregate-type="urgent-count"]');
-    urgentLabel.text(`${urgentLabel.text().split(':')[0]}: ${urgentCount}`);
-    //not urgent
-    var notUrgentCount = $("tr td span.badge.text-bg-success").parents("tr:not('.override-hide')").length;
-    var notUrgentLabel = $('[data-aggregate-type="noturgent-count"]');
-    notUrgentLabel.text(`${notUrgentLabel.text().split(':')[0]}: ${notUrgentCount}`);
+    if (!gbSetCountLabel(countLabel, visibleRows.length)) {
+        countLabel.text(`${countLabel.text().split(':')[0]}: ${visibleRows.length}`);
+    }
+    var setLabel = function (type, urgency) {
+        var label = $(`[data-aggregate-type="${type}"]`);
+        var count = visibleRows.filter(`[data-urgency="${urgency}"]`).length;
+        if (!gbSetCountLabel(label, count)) {
+            label.text(`${label.text().split(':')[0]}: ${count}`);
+        }
+        if (type != "noturgent-count") {
+            label.toggleClass('d-none', count == 0);
+        }
+    };
+    setLabel("pastdue-count", "PastDue");
+    setLabel("veryurgent-count", "VeryUrgent");
+    setLabel("urgent-count", "Urgent");
+    setLabel("noturgent-count", "NotUrgent");
 }

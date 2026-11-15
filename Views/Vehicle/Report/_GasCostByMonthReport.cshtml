@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @model List<CostForVehicleByMonth>
@@ -35,16 +35,22 @@
                         datasets: [
                             {
                                 label: decodeHTMLEntities('@translator.Translate(userLanguage, "Expenses by Month")'),
-                                backgroundColor: barGraphColors,
+                                backgroundColor: gbChartBar(),
+                                hoverBackgroundColor: gbCssVar('--gb-ink'),
+                                borderRadius: 6,
+                                maxBarThickness: 36,
                                 data: barGraphData,
                                 order: 1,
                                 yAxisID: 'y',
+                                hidden: getGlobalConfig().hideCosts,
                             },
                             {
                                 label: decodeHTMLEntities('@translator.Translate(userLanguage, "Distance Traveled by Month")'),
                                 data: lineChartData,
-                                borderColor: useDarkMode ? "#fff" : "#000",
-                                backgroundColor: useDarkMode ? "#000" : "#fff",
+                                borderColor: gbCssVar('--gb-blue'),
+                                backgroundColor: gbCssVar('--gb-blue'),
+                                pointRadius: 3,
+                                tension: .3,
                                 type: 'line',
                                 order: 0,
                                 yAxisID: 'y1',
@@ -55,41 +61,43 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         onClick: (e, a, c) => {
-                            showBarChartTable(a);
+                            if (!getGlobalConfig().hideCosts) {
+                                showBarChartTable(a);
+                            }
                         },
                         onHover: (e, a, c) => {
-                            a.length > 0 ? c.canvas.style.cursor = 'pointer' : c.canvas.style.cursor = 'default';
+                            a.length > 0 && !getGlobalConfig().hideCosts ? c.canvas.style.cursor = 'pointer' : c.canvas.style.cursor = 'default';
                         },
                         plugins: {
                             title: {
-                                display: true,
-                                color: useDarkMode ? "#fff" : "#000",
-                                text: decodeHTMLEntities('@translator.Translate(userLanguage, "Expenses and Distance Traveled by Month")')
+                                display: false
                             },
                             legend: {
-                                display: false,
+                                display: !getGlobalConfig().hideCosts,
+                                position: 'bottom',
                                 labels: {
-                                    color: useDarkMode ? "#fff" : "#000"
+                                    color: gbChartInk()
                                 }
                             }
                         },
                         scales: {
                             y: {
                                 beginAtZero: true,
+                                display: !getGlobalConfig().hideCosts,
                                 ticks: {
-                                    color: useDarkMode ? "#fff" : "#000"
+                                    color: gbChartInk()
                                 }
                             },
                             y1: {
                                 beginAtZero: true,
                                 position: 'right',
                                 ticks: {
-                                    color: useDarkMode ? "#fff" : "#000"
+                                    color: gbChartInk()
                                 }
                             },
                             x: {
                                 ticks: {
-                                    color: useDarkMode ? "#fff" : "#000"
+                                    color: gbChartInk()
                                 }
                             }
                         }
@@ -99,7 +107,5 @@
     </script>
 } else
 {
-    <div class="text-center">
-        <h4>@translator.Translate(userLanguage,"No data found, insert/select some data to see visualizations here.")</h4>
-    </div>
+    <div class="gb-chart-empty">@translator.Translate(userLanguage, "Nothing to chart for this period yet.")</div>
 }

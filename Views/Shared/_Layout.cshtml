@@ -12,12 +12,15 @@
     var useMarkDown = userConfig.UseMarkDownOnSavedNotes;
     var useThreeDecimals = userConfig.UseThreeDecimalGasCost;
     var automaticDecimalFormat = userConfig.AutomaticDecimalFormat;
+    var hideCosts = userConfig.HideCostTracking;
     var shortDatePattern = CultureInfo.CurrentCulture.DateTimeFormat.ShortDatePattern;
     var firstDayOfWeek = (int)CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek;
     var numberFormat = CultureInfo.CurrentCulture.NumberFormat;
     var userLanguage = userConfig.UserLanguage;
     var webSocketEnabled = config.GetWebSocketEnabled();
     var resizeThumbnailEnabled = config.GetResizeThumbnailEnabled();
+    var fullBleed = ViewData["FullBleed"] is bool fb && fb;
+    var bodyClass = ViewData["BodyClass"] as string ?? string.Empty;
     shortDatePattern = shortDatePattern.ToLower();
     if (!shortDatePattern.Contains("dd"))
     {
@@ -27,47 +30,65 @@
     {
         shortDatePattern = shortDatePattern.Replace("m", "mm");
     }
+    var pageTitle = ViewData["Title"] as string;
 }
-<html lang="en" data-bs-theme="@(useDarkMode ? "dark" : "light")">
+<html lang="en" data-bs-theme="@(useDarkMode ? "dark" : "light")" data-gb-color-mode="@(useSystemColorMode ? "system" : (useDarkMode ? "dark" : "light"))">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="apple-mobile-web-app-title" content="LubeLogger" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181818">
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f3">
     @if (userConfig.DisableAutoZoom)
     {
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     }
-    <title>@ViewData["Title"] - LubeLogger</title>
+    else
+    {
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    }
+    <script>
+        //apply the system colour mode before first paint to avoid a flash
+        (function () {
+            var root = document.documentElement;
+            if (root.getAttribute('data-gb-color-mode') === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                root.setAttribute('data-bs-theme', 'dark');
+            }
+        })();
+    </script>
+    <meta name="apple-mobile-web-app-title" content="Glovebox" />
+    <meta name="application-name" content="Glovebox" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0F1620">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F1F3F6">
+    <title>@(string.IsNullOrWhiteSpace(pageTitle) ? "Glovebox" : $"{pageTitle} - Glovebox")</title>
     <link rel="icon" type="image/x-icon" href="~/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="~/defaults/glovebox_icon.svg">
+    <link rel="stylesheet" href="~/lib/fonts/fonts.css?v=@StaticHelper.AssetVersion" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-icons.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-datepicker/css/bootstrap-datepicker.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-tagsinput/bootstrap-tagsinput.css" />
-    <link rel="stylesheet" href="~/css/site.css?v=@StaticHelper.VersionNumber" />
-    <link rel="stylesheet" href="~/css/loader.css"/>
-    <link rel="stylesheet" href="~/css/theme.css" media="screen"/>
-    <link rel="stylesheet" href="~/sweetalert/sweetalert2.min.css"/>
-    <link rel="icon" sizes="192x192" href="~/defaults/lubelogger_icon_192.png" />
-    <link rel="icon" sizes="128x128" href="~/defaults/lubelogger_icon_128.png" />
-    <link rel="apple-touch-icon" sizes="128x128" href="~/defaults/lubelogger_icon_128.png" />
-    <link rel="apple-touch-icon-precomposed" sizes="128x128" href="~/defaults/lubelogger_icon_128.png" />
-    <link rel="apple-touch-startup-image" href="~/defaults/lubelogger_launch.png" />
+    <link rel="stylesheet" href="~/sweetalert/sweetalert2.min.css" />
+    <link rel="stylesheet" href="~/css/site.css?v=@StaticHelper.AssetVersion" />
+    <link rel="stylesheet" href="~/css/loader.css" />
+    <link rel="stylesheet" href="~/css/glovebox.css?v=@StaticHelper.AssetVersion" />
+    <link rel="stylesheet" href="~/css/theme.css" media="screen" />
+    <link rel="icon" sizes="192x192" href="~/defaults/glovebox_icon_192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="~/defaults/glovebox_icon_180.png" />
     <link rel="manifest" href="~/manifest.json">
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/js/shared.js?v=@StaticHelper.VersionNumber"></script>
+    <script src="~/js/shared.js?v=@StaticHelper.AssetVersion"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/bootstrap-datepicker/js/bootstrap-datepicker.min.js"></script>
     <script src="~/lib/bootstrap-tagsinput/bootstrap-tagsinput.js"></script>
     <script src="~/sweetalert/sweetalert2.all.min.js"></script>
-    <script src="~/js/loader.js?v=@StaticHelper.VersionNumber"></script>
+    <script src="~/lib/marked/marked.umd.js"></script>
+    <script src="~/lib/dompurify/purify.min.js"></script>
+    <script src="~/js/loader.js?v=@StaticHelper.AssetVersion"></script>
+    <script src="~/js/glovebox.js?v=@StaticHelper.AssetVersion"></script>
     <script>
         function getGlobalConfig() {
             return {
-                useDarkMode: "@useDarkMode" == "True" || ("@useSystemColorMode" == "True" && window.matchMedia('(prefers-color-scheme: dark)').matches),
+                useDarkMode: document.documentElement.getAttribute('data-bs-theme') == 'dark',
                 enableCsvImport : "@enableCsvImports" == "True",
                 useMarkDown: "@useMarkDown" == "True",
                 currencySymbol: decodeHTMLEntities("@numberFormat.CurrencySymbol"),
@@ -75,6 +96,7 @@
                 useMPG: "@useMPG" == "True",
                 webSocketEnabled: "@webSocketEnabled" == "True",
                 resizeThumbnailEnabled: "@resizeThumbnailEnabled" == "True",
+                hideCosts: "@hideCosts" == "True",
                 firstDayOfWeek: @firstDayOfWeek
             }
         }
@@ -91,8 +113,8 @@
             if (input == "---") {
                 input = "0";
             }
-            //strip thousands from input.
-            input = input.replace(thousandSeparator, "");
+            //strip every thousands separator from input.
+            input = String(input).split(thousandSeparator).join("");
             //convert to JS format where decimal is only separated by .
             input = input.replace(decimalSeparator, ".");
             //remove any currency symbol
@@ -163,27 +185,34 @@
             }
         }
         function setThemeBasedOnDevice() {
-            var systemPrefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (systemPrefersDarkMode) {
-                $(document.documentElement).attr("data-bs-theme", "dark");
-            }
+            gbApplyColorMode();
         }
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 </head>
-<body>
+<body class="@(hideCosts ? "gb-hide-costs" : "") @bodyClass">
     @await RenderSectionAsync("Nav", required: false)
-    <div class="container lubelogger-body-container">
-        <main role="main">
+    @if (fullBleed)
+    {
+        <main role="main" class="gb-main">
             @RenderBody()
         </main>
-    </div>
+    }
+    else
+    {
+        <div class="container lubelogger-body-container">
+            <main role="main">
+                @RenderBody()
+            </main>
+        </div>
+    }
     @await RenderSectionAsync("Footer", required: false)
+    <div class="modal fade" data-bs-focus="false" id="attachmentPreviewModal" tabindex="-1" role="dialog" aria-label="Attachment viewer" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen" role="document">
+            <div class="modal-content" id="attachmentPreviewModalContent">
+            </div>
+        </div>
+    </div>
+    <div class="gb-savebar" id="gbSavebar" role="status" aria-live="polite"><i class="bi bi-check2"></i><span></span></div>
 </body>
 </html>
-@if (useSystemColorMode)
-{
-    <script>
-        setThemeBasedOnDevice();
-    </script>
-}

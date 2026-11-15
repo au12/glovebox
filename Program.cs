@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using System.Globalization;
 
@@ -105,6 +106,7 @@ builder.Services.AddSingleton<IReportHelper, ReportHelper>();
 builder.Services.AddSingleton<IConfigHelper, ConfigHelper>();
 builder.Services.AddSingleton<ITranslationHelper, TranslationHelper>();
 builder.Services.AddSingleton<IMailHelper, MailHelper>();
+builder.Services.AddSingleton<IGloveboxHelper, GloveboxHelper>();
 
 //configure logic
 builder.Services.AddSingleton<ILoginLogic, LoginLogic>();
@@ -112,6 +114,9 @@ builder.Services.AddSingleton<IUserLogic, UserLogic>();
 builder.Services.AddSingleton<IOdometerLogic, OdometerLogic>();
 builder.Services.AddSingleton<IVehicleLogic, VehicleLogic>();
 builder.Services.AddSingleton<INotificationLogic, NotificationLogic>();
+//Glovebox: ntfy reminder notifications (always on; does nothing until a user enables ntfy in Settings)
+builder.Services.AddSingleton<INtfyNotificationLogic, NtfyNotificationLogic>();
+builder.Services.AddHostedService<NtfyNotificationService>();
 
 //configure automated event logic
 if (StaticHelper.CheckConfigBoolean(builder.Configuration, "LUBELOGGER_AUTO_EVENTS"))
@@ -151,7 +156,13 @@ app.UseExceptionHandler("/Error");
 app.UseStatusCodePagesWithReExecute("/Error/{0}");
 
 //static file security
-app.UseStaticFiles();
+//pdf.js ships ES modules, character maps and font programs that the default provider doesn't know about.
+var staticContentTypes = new FileExtensionContentTypeProvider();
+staticContentTypes.Mappings[".mjs"] = "text/javascript";
+staticContentTypes.Mappings[".bcmap"] = "application/octet-stream";
+staticContentTypes.Mappings[".pfb"] = "application/octet-stream";
+staticContentTypes.Mappings[".webmanifest"] = "application/manifest+json";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = staticContentTypes });
 
 //api middleware
 app.UseWhen(

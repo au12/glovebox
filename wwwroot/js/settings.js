@@ -8,17 +8,20 @@ function hideExtraFieldModal() {
     $("#extraFieldModal").modal('hide');
 }
 function getCheckedTabs() {
-    var visibleTabs = $("#visibleTabs :checked").map(function () {
+    var visibleTabs = $("#visibleTabs input[type='checkbox']:checked").map(function () {
         return this.value;
-    });
-    return visibleTabs.toArray();
+    }).toArray();
+    if (!visibleTabs.includes("Dashboard")) {
+        visibleTabs.unshift("Dashboard");
+    }
+    return visibleTabs;
 }
 function deleteLanguage() {
     var languageFileLocation = `/translations/${$("#defaultLanguage").val()}.json`;
     $.post('/Files/DeleteFiles', { fileLocation: languageFileLocation }, function (data) {
         //reset user language back to en_US
         $("#defaultLanguage").val('en_US');
-        updateSettings();
+        updateSettings(true);
     });
 }
 function deleteTheme() {
@@ -26,22 +29,35 @@ function deleteTheme() {
     $.post('/Files/DeleteFiles', { fileLocation: themeFileLocation }, function (data) {
         //reset user theme
         $("#defaultTheme").val('');
-        updateSettings();
+        updateSettings(true);
     });
 }
-function updateSettings() {
+function gbSelectedColorMode() {
+    return $('input[name="gbColorMode"]:checked').val() || 'light';
+}
+function gbColorModeChanged() {
+    var mode = gbSelectedColorMode();
+    var root = document.documentElement;
+    root.setAttribute('data-gb-color-mode', mode);
+    if (mode === 'system') {
+        gbApplyColorMode();
+    } else {
+        root.setAttribute('data-bs-theme', mode);
+    }
+    updateSettings();
+}
+function gbCollectUserConfig() {
     var visibleTabs = getCheckedTabs();
     var defaultTab = $("#defaultTab").val();
     if (!visibleTabs.includes(defaultTab)) {
-        defaultTab = "Dashboard"; //default to dashboard.
+        defaultTab = "Dashboard";
     }
-    var tabOrder = getTabOrder();
-
-    var userConfigObject = {
-        useDarkMode: $('#defaultColorMode').val() == "1",
-        useSystemColorMode: $('#defaultColorMode').val() == "2",
+    var colorMode = gbSelectedColorMode();
+    return {
+        useDarkMode: colorMode == 'dark',
+        useSystemColorMode: colorMode == 'system',
         enableCsvImports: $("#enableCsvImports").is(':checked'),
-        useMPG: $("#useMPG").is(':checked'),
+        useMPG: $("#unitsImperial").is(':checked'),
         useDescending: $("#useDescending").is(':checked'),
         hideZero: $("#hideZero").is(":checked"),
         automaticDecimalFormat: $("#automaticDecimalFormat").is(":checked"),
@@ -56,7 +72,7 @@ function updateSettings() {
         enablePersistentDialog: $("#enablePersistentDialog").is(":checked"),
         showCalendar: $("#showCalendar").is(":checked"),
         showVehicleThumbnail: $("#showVehicleThumbnail").is(":checked"),
-        showSearch: $("#showGarageSearch").is(":checked"),
+        showSearch: false,
         disableAutoZoom: $("#disableAutoZoom").is(":checked"),
         enableExtraFieldColumns: $("#enableExtraFieldColumns").is(":checked"),
         hideSoldVehicles: $("#hideSoldVehicles").is(":checked"),
@@ -67,19 +83,140 @@ function updateSettings() {
         useUnitForFuelCost: $("#useUnitForFuelCost").is(":checked"),
         useGridInMobile: $("#useGridInMobile").is(":checked"),
         enableNotesColumnWrap: $("#enableNotesColumnWrap").is(":checked"),
+        hideCostTracking: !$("#trackCosts").is(":checked"),
         visibleTabs: visibleTabs,
-        defaultTab: defaultTab,
-        tabOrder: tabOrder
+        defaultTab: defaultTab
+    };
+}
+var gbSettingsRequest = null;
+function updateSettings(reloadAfterSave) {
+    var userConfigObject = gbCollectUserConfig();
+    //keep the default section picker honest when its section was just hidden
+    if ($("#defaultTab").val() != userConfigObject.defaultTab) {
+        $("#defaultTab").val(userConfigObject.defaultTab);
     }
-    sloader.show();
-    $.post('/Home/WriteToSettings', { userConfig: userConfigObject }, function (data) {
-        sloader.hide();
+    //costs can be hidden or shown without a reload
+    $("body").toggleClass("gb-hide-costs", userConfigObject.hideCostTracking);
+    if (reloadAfterSave) {
+        sloader.show();
+    }
+    if (gbSettingsRequest && gbSettingsRequest.readyState != 4) {
+        gbSettingsRequest.abort();
+    }
+    gbSettingsRequest = $.post('/Home/WriteToSettings', { userConfig: userConfigObject }, function (data) {
         if (data) {
-            setTimeout(function () { window.location.href = '/Home/Index?tab=settings' }, 500);
+            if (reloadAfterSave) {
+                setTimeout(function () { window.location.href = '/Home/Index?tab=settings' }, 300);
+            } else {
+                gbShowSaved();
+            }
         } else {
+            sloader.hide();
             errorToast(genericErrorMessage());
         }
-    })
+    }).fail(function (xhr, status) {
+        if (status != 'abort') {
+            sloader.hide();
+            errorToast(genericErrorMessage());
+        }
+    });
+}
+/* ---------- notifications (ntfy) ---------- */
+function gbCollectNtfy() {
+    return {
+        enabled: $("#ntfyEnabled").is(":checked"),
+        serverUrl: $("#ntfyServerUrl").val().trim(),
+        topic: $("#ntfyTopic").val().trim(),
+        accessToken: $("#ntfyAccessToken").val().trim(),
+        username: $("#ntfyUsername").val().trim(),
+        password: $("#ntfyPassword").val(),
+        appUrl: $("#ntfyAppUrl").val().trim(),
+        notifyHeadsUp: $("#ntfyHeadsUp").is(":checked"),
+        notifyDueSoon: $("#ntfyDueSoon").is(":checked"),
+        notifyUrgent: $("#ntfyUrgent").is(":checked"),
+        notifyOverdue: $("#ntfyOverdue").is(":checked"),
+        headsUpDistance: parseInt($("#ntfyHeadsUpDistance").val()) || 0,
+        headsUpDays: parseInt($("#ntfyHeadsUpDays").val()) || 0,
+        overdueRepeatDays: parseInt($("#ntfyOverdueRepeat").val()) || 0,
+        quietHoursEnabled: $("#ntfyQuiet").is(":checked"),
+        quietHoursStart: parseInt($("#ntfyQuietStart").val()) || 0,
+        quietHoursEnd: parseInt($("#ntfyQuietEnd").val()) || 0
+    };
+}
+function gbValidateNtfy(ntfy, requireTopic) {
+    if ((ntfy.enabled || requireTopic) && ntfy.topic == '') {
+        errorToast("Enter the ntfy topic you subscribed to");
+        $("#ntfyTopic").addClass('is-invalid').trigger('focus');
+        return false;
+    }
+    $("#ntfyTopic").removeClass('is-invalid');
+    return true;
+}
+function gbSyncNtfyForm() {
+    var enabled = $("#ntfyEnabled").is(":checked");
+    $("#gbNtfyForm .gb-group").not(':first').toggleClass('opacity-50', !enabled);
+    $("#gbHeadsUpDefaults").toggleClass('d-none', !$("#ntfyHeadsUp").is(":checked"));
+}
+function gbSaveNtfy() {
+    var ntfy = gbCollectNtfy();
+    if (!gbValidateNtfy(ntfy, false)) {
+        return;
+    }
+    var clearSecrets = $("#ntfyClearSecrets").is(":checked");
+    sloader.show();
+    $.post('/Home/SaveNotificationSettings', { ntfy: ntfy, clearSecrets: clearSecrets }, function (data) {
+        sloader.hide();
+        if (data.success) {
+            $("#ntfyAccessToken, #ntfyPassword").val('');
+            if (data.hasToken != undefined) {
+                $("#ntfyAccessToken").attr('placeholder', data.hasToken ? 'Saved, leave blank to keep' : 'tk_...');
+            }
+            if (data.hasPassword != undefined) {
+                $("#ntfyPassword").attr('placeholder', data.hasPassword ? 'Saved, leave blank to keep' : '');
+            }
+            if (clearSecrets) {
+                $("#ntfyClearSecrets").closest('.form-check').remove();
+            }
+            gbShowSaved(ntfy.enabled ? "Notifications on" : "Notification settings saved");
+        } else {
+            errorToast(data.message || genericErrorMessage());
+        }
+    }).fail(function () {
+        sloader.hide();
+        errorToast(genericErrorMessage());
+    });
+}
+function gbTestNtfy() {
+    var ntfy = gbCollectNtfy();
+    if (!gbValidateNtfy(ntfy, true)) {
+        return;
+    }
+    sloader.show();
+    $.post('/Home/SendNtfyTest', { ntfy: ntfy }, function (data) {
+        sloader.hide();
+        if (data.success) {
+            successToast(data.message || "Test notification sent");
+        } else {
+            errorToast(data.message || genericErrorMessage());
+        }
+    }).fail(function () {
+        sloader.hide();
+        errorToast(genericErrorMessage());
+    });
+}
+function gbCheckNtfyNow() {
+    sloader.show();
+    $.post('/Home/CheckNotificationsNow', function (data) {
+        sloader.hide();
+        if (data.success) {
+            successToast(data.message);
+        } else {
+            errorToast(data.message || genericErrorMessage());
+        }
+    }).fail(function () {
+        sloader.hide();
+        errorToast(genericErrorMessage());
+    });
 }
 function makeBackup() {
     $.get('/Files/MakeBackup', function (data) {
@@ -174,12 +311,6 @@ function restoreBackup(event) {
         console.log('LubeLogger - DB Restoration Failed - Request failed to reach backend, please check file size.');
         errorToast("An error has occurred, please check the file size and try again later.");
     });
-}
-
-function loadSponsors() {
-    $.get('/Home/Sponsors', function (data) {
-        $("#sponsorsContainer").html(data);
-    })
 }
 
 function showTranslationEditor() {
@@ -305,8 +436,8 @@ function downloadTranslation(continent, name) {
     $.get(`/Home/DownloadTranslation?continent=${continent}&name=${name}`, function (data) {
         sloader.hide();
         if (data) {
-            successToast("Translation Downloaded");
-            updateSettings();
+            successToast("Translation downloaded");
+            updateSettings(true);
         } else {
             errorToast(genericErrorMessage());
         }
@@ -318,7 +449,7 @@ function downloadAllTranslations() {
         sloader.hide();
         if (data.success) {
             successToast(data.message);
-            updateSettings();
+            updateSettings(true);
         } else {
             errorToast(data.message);
         }
@@ -327,97 +458,14 @@ function downloadAllTranslations() {
 function deleteTranslationKey(e) {
     $(e).parent().parent().remove();
 }
-//tabs reorder
-function showTabReorderModal() {
-    //reorder the list items based on the CSS attribute
-    var sortedOrderedTabs = $(".lubelog-tab-groups > li").toArray().sort((a, b) => {
-        var currentVal = $(a).css("order");
-        var nextVal = $(b).css("order");
-        return currentVal - nextVal;
-    });
-    $(".lubelog-tab-groups").html(sortedOrderedTabs);
-    $("#tabReorderModal").modal('show');
-    bindTabReorderEvents();
-}
-function hideTabReorderModal() {
-    $("#tabReorderModal").modal('hide');
-}
-var tabDraggedToReorder = undefined;
-function handleTabDragStart(e) {
-    tabDraggedToReorder = $(e.target).closest('.list-group-item');
-    //clear out order attribute.
-    $(".lubelog-tab-groups > li").map((index, elem) => {
-        $(elem).css('order', 0);
-    })
-}
-function handleTabDragOver(e) {
-    if (tabDraggedToReorder == undefined || tabDraggedToReorder == "") {
-        return;
-    }
-    var potentialDropTarget = $(e.target).closest('.list-group-item').attr("data-tab");
-    var draggedTarget = tabDraggedToReorder.closest('.list-group-item').attr("data-tab");
-    if (draggedTarget != potentialDropTarget) {
-        var targetObj = $(e.target).closest('.list-group-item');
-        var draggedOrder = tabDraggedToReorder.index();
-        var targetOrder = targetObj.index();
-        if (draggedOrder < targetOrder) {
-            tabDraggedToReorder.insertAfter(targetObj);
-        } else {
-            tabDraggedToReorder.insertBefore(targetObj);
-        }
-    }
-    else {
-        event.preventDefault();
-    }
-}
-function bindTabReorderEvents() {
-    $(".lubelog-tab-groups > li").on('dragstart', event => {
-        handleTabDragStart(event);
-    });
-    $(".lubelog-tab-groups > li").on('dragover', event => {
-        handleTabDragOver(event);
-    });
-    $(".lubelog-tab-groups > li").on('dragend', event => {
-        //reset order attribute
-        $(".lubelog-tab-groups > li").map((index, elem) => {
-            $(elem).css('order', $(elem).index());
-        })
-    });
-}
-function getTabOrder() {
-    var tabOrderArray = [];
-    //check if any tabs have -1 order
-    var resetTabs = $(".lubelog-tab-groups > li").filter((index, elem) => $(elem).css('order') == -1).length > 0;
-    if (resetTabs) {
-        return tabOrderArray; //return empty array.
-    }
-    var sortedOrderedTabs = $(".lubelog-tab-groups > li").toArray().sort((a, b) => {
-        var currentVal = $(a).css("order");
-        var nextVal = $(b).css("order");
-        return currentVal - nextVal;
-    });
-    sortedOrderedTabs.map(elem => {
-        var elemName = $(elem).attr("data-tab");
-        tabOrderArray.push(elemName);
-    });
-    return tabOrderArray;
-}
-function resetTabOrder() {
-    //set all orders to -1
-    $(".lubelog-tab-groups > li").map((index, elem) => {
-        $(elem).css('order', -1);
-    })
-    updateSettings();
-}
-
 function hideCustomWidgets() {
     $("#customWidgetModal").modal('hide');
 }
 function saveCustomWidgets() {
     $.post('/Home/SaveCustomWidgets', { widgetsData: $("#widgetEditor").val() }, function (data) {
         if (data) {
-            successToast("Custom Widgets Saved!");
-            updateSettings();
+            successToast("Custom widgets saved");
+            hideCustomWidgets();
         } else {
             errorToast(genericErrorMessage());
         }
@@ -426,8 +474,8 @@ function saveCustomWidgets() {
 function deleteCustomWidgets() {
     $.post('/Home/DeleteCustomWidgets', function (data) {
         if (data) {
-            successToast("Custom Widgets Deleted!");
-            updateSettings();
+            successToast("Custom widgets deleted");
+            hideCustomWidgets();
         } else {
             errorToast(genericErrorMessage());
         }
@@ -517,19 +565,31 @@ function searchTranslations() {
         $(`.lubelog-translation-row span:containsNC('${searchTerm}')`).closest('.lubelog-translation-row').show();
     }
 }
-function loadSettingsPage(pageNumber) {
-    $('[data-page-nav]').removeClass('btn-primary');
-    $('[data-page-nav]').addClass('btn-outline-primary');
-    $(`[data-page-nav="${pageNumber}"]`).removeClass('btn-outline-primary');
-    $(`[data-page-nav="${pageNumber}"]`).addClass('btn-primary');
-    $('[data-page]').hide();
-    $(`[data-page="${pageNumber}"]`).show();
-    sessionStorage.setItem('settingsSubTab', pageNumber);
+function loadSettingsPage(pageName) {
+    var nav = $('.gb-settings-nav [data-settings-page]');
+    nav.removeClass('active').removeAttr('aria-current');
+    nav.filter(`[data-settings-page="${pageName}"]`).addClass('active').attr('aria-current', 'page');
+    $('[data-settings-section]').removeClass('active');
+    $(`[data-settings-section="${pageName}"]`).addClass('active');
+    sessionStorage.setItem('settingsSubTab', pageName);
 }
 function renderSettingsSubTab() {
+    $('.gb-settings-nav [data-settings-page]').off('click').on('click', function () {
+        loadSettingsPage($(this).attr('data-settings-page'));
+        var nav = $('.gb-settings-nav')[0];
+        if (nav && getComputedStyle(nav).flexDirection == 'row') {
+            this.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+    });
     let storedSubTab = sessionStorage.getItem('settingsSubTab');
-    if (storedSubTab == null || storedSubTab == undefined || $(`[data-page="${storedSubTab}"]`).length == 0) {
-        storedSubTab = 1;
+    if (storedSubTab == null || storedSubTab == undefined || $(`[data-settings-section="${storedSubTab}"]`).length == 0) {
+        storedSubTab = 'appearance';
     }
     loadSettingsPage(storedSubTab);
+    $('#ntfyEnabled, #ntfyHeadsUp').off('change.gb').on('change.gb', gbSyncNtfyForm);
+    if ($("#ntfyAppUrl").length && $("#ntfyAppUrl").val().trim() == '') {
+        $("#ntfyAppUrl").attr('placeholder', window.location.origin);
+    }
+    gbSyncNtfyForm();
 }

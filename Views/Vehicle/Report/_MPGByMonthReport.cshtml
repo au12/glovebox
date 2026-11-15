@@ -1,4 +1,4 @@
-﻿@using CarCareTracker.Helper
+@using CarCareTracker.Helper
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @model MPGForVehicleByMonth
@@ -53,7 +53,10 @@
                         datasets: [
                             {
                                 label: decodeHTMLEntities('@translator.Translate(userLanguage, "Fuel Mileage by Month")'),
-                                backgroundColor: barGraphColors,
+                                backgroundColor: gbChartBar(),
+                                hoverBackgroundColor: gbCssVar('--gb-ink'),
+                                borderRadius: 6,
+                                maxBarThickness: 36,
                                 data: barGraphData
                             }
                         ]
@@ -63,14 +66,12 @@
                         maintainAspectRatio: false,
                         plugins: {
                             title: {
-                                display: true,
-                                color: useDarkMode ? "#fff" : "#000",
-                                text: decodeHTMLEntities('@($"{translator.Translate(userLanguage, "Fuel Mileage by Month")}({Model.Unit})")')
+                                display: false
                             },
                             legend: {
                                 display: false,
                                 labels: {
-                                    color: useDarkMode ? "#fff" : "#000"
+                                    color: gbChartInk()
                                 }
                             }
                         },
@@ -79,14 +80,19 @@
                                 beginAtZero: false,
                                 max: Math.ceil(decodeHTMLEntities('@(cleanedMax)')),
                                 min: Math.floor(decodeHTMLEntities('@(cleanedMin)')),
+                                title: {
+                                    display: true,
+                                    text: decodeHTMLEntities('@Model.Unit'),
+                                    color: gbChartInk()
+                                },
                                 ticks: {
-                                    color: useDarkMode ? "#fff" : "#000",
+                                    color: gbChartInk(),
                                     stepSize: Math.ceil(decodeHTMLEntities('@(stepSize)'))
                                 }
                             },
                             x: {
                                 ticks: {
-                                    color: useDarkMode ? "#fff" : "#000"
+                                    color: gbChartInk()
                                 }
                             }
                         }
@@ -97,7 +103,5 @@
 }
 else
 {
-    <div class="text-center">
-        <h4>@translator.Translate(userLanguage,"No data found, insert/select some data to see visualizations here.")</h4>
-    </div>
+    <div class="gb-chart-empty">@translator.Translate(userLanguage, "Log a few fill-ups to see fuel economy here.")</div>
 }

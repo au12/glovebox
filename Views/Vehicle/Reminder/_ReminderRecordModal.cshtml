@@ -6,126 +6,189 @@
     var isNew = Model.Id == 0;
     var userConfig = config.GetUserConfig(User);
     var userLanguage = userConfig.UserLanguage;
+    var ntfy = userConfig.Ntfy ?? new NtfyConfig();
     string distanceUnit;
+    string shortUnit;
     if (Model.UseHours)
     {
-        distanceUnit = @translator.Translate(userLanguage, "hours");
+        distanceUnit = translator.Translate(userLanguage, "hours");
+        shortUnit = "h";
     }
-    else if (userConfig.UseUKMPG)
+    else if (userConfig.UseUKMPG || userConfig.UseMPG)
     {
-        distanceUnit = @translator.Translate(userLanguage, "miles");
+        distanceUnit = translator.Translate(userLanguage, "miles");
+        shortUnit = "mi";
     }
     else
     {
-        distanceUnit = userConfig.UseMPG ? @translator.Translate(userLanguage, "miles") : @translator.Translate(userLanguage, "kilometers");
+        distanceUnit = translator.Translate(userLanguage, "kilometers");
+        shortUnit = "km";
     }
+    var showDate = Model.Metric == ReminderMetric.Date || Model.Metric == ReminderMetric.Both;
+    var showOdometer = Model.Metric == ReminderMetric.Odometer || Model.Metric == ReminderMetric.Both;
+    var defaultSummary = $"{ntfy.HeadsUpDistance.ToString("N0")} {shortUnit} / {ntfy.HeadsUpDays} {translator.Translate(userLanguage, "days")}";
+    var increments = Model.UseHours ? new[] { 50, 100, 250, 500 } : new[] { 1000, 3000, 5000, 7500, 10000 };
 }
 <div class="modal-header">
-    <h5 class="modal-title">@(isNew? translator.Translate(userLanguage, "Add New Reminder") : translator.Translate(userLanguage, "Edit Reminder"))<a class="ms-1 link-body-emphasis" onclick="@(isNew ? $"createQR('add', '')" : $"createQR('id', {Model.Id})")"><i class="bi bi-qr-code"></i></a></h5>
+    <h5 class="modal-title">@(isNew ? translator.Translate(userLanguage, "New reminder") : translator.Translate(userLanguage, "Edit reminder"))<a class="link-body-emphasis" onclick="@(isNew ? $"createQR('add', '')" : $"createQR('id', {Model.Id})")" title="QR code"><i class="bi bi-qr-code"></i></a></h5>
     <button type="button" class="btn-close" onclick="hideAddReminderRecordModal()" aria-label="Close"></button>
 </div>
 <div class="modal-body" onkeydown="handleEnter(this)">
-    <form>
-        <div class="form-group">
-            <div class="row">
-                <div class="col-md-6 col-12" id="reminderOptions">
-                    <input type="text" id="workAroundInput" style="height:0px; width:0px; display:none;">
-                    <label for="reminderDescription">@translator.Translate(userLanguage,"Description")</label>
-                    <input type="text" id="reminderDescription" class="form-control" placeholder="@translator.Translate(userLanguage,"Reminder Description")" value="@Model.Description">
-                    <label>@translator.Translate(userLanguage,"Remind me on")</label>
-                    <div class="form-check">
-                        <input class="form-check-input" onclick="enableRecurring()" type="radio" name="reminderMetricOptions" id="reminderMetricDate" value="@(ReminderMetric.Date)" checked="@(Model.Metric == ReminderMetric.Date)">
-                        <label class="form-check-label" for="reminderMetricDate">@translator.Translate(userLanguage,"Date")</label>
-                    </div>
+    <form onsubmit="return false;">
+        <div class="row g-4">
+            <div class="col-md-6 col-12" id="reminderOptions">
+                <input type="text" id="workAroundInput" style="height:0px; width:0px; display:none;">
+                <label for="reminderDescription">@translator.Translate(userLanguage, "What needs doing?")</label>
+                <input type="text" id="reminderDescription" class="form-control" placeholder="@translator.Translate(userLanguage, "e.g. Oil change")" value="@Model.Description">
+                <label>@translator.Translate(userLanguage, "Remind me by")</label>
+                <div class="gb-segmented" role="radiogroup">
+                    <input type="radio" name="reminderMetricOptions" id="reminderMetricOdometer" value="@(ReminderMetric.Odometer)" onclick="gbReminderMetricChanged()" checked="@(Model.Metric == ReminderMetric.Odometer)">
+                    <label for="reminderMetricOdometer"><i class="bi bi-speedometer"></i>@translator.Translate(userLanguage, "Odometer")</label>
+                    <input type="radio" name="reminderMetricOptions" id="reminderMetricDate" value="@(ReminderMetric.Date)" onclick="gbReminderMetricChanged()" checked="@(Model.Metric == ReminderMetric.Date)">
+                    <label for="reminderMetricDate"><i class="bi bi-calendar-event"></i>@translator.Translate(userLanguage, "Date")</label>
+                    <input type="radio" name="reminderMetricOptions" id="reminderMetricBoth" value="@(ReminderMetric.Both)" onclick="gbReminderMetricChanged()" checked="@(Model.Metric == ReminderMetric.Both)">
+                    <label for="reminderMetricBoth">@translator.Translate(userLanguage, "Whichever first")</label>
+                </div>
+                <div id="gbReminderOdometerField" class="@(showOdometer ? "" : "d-none")">
+                    <label for="reminderMileage">@translator.Translate(userLanguage, "Due at odometer")</label>
                     <div class="input-group">
-                        <input type="text" id="reminderDate" class="form-control" placeholder="@translator.Translate(userLanguage,"Future Date")" value="@Model.Date">
+                        <input type="number" inputmode="numeric" id="reminderMileage" class="form-control" placeholder="@translator.Translate(userLanguage, "Future odometer reading")" value="@(isNew ? "" : Model.Mileage)">
+                        <span class="input-group-text">@shortUnit</span>
+                    </div>
+                    @if (Model.CurrentOdometer > 0)
+                    {
+                        <div class="d-flex flex-wrap gap-1 mt-2 align-items-center">
+                            <small class="text-body-secondary me-1">@translator.Translate(userLanguage, "Now") @Model.CurrentOdometer.ToString("N0"):</small>
+                            @foreach (var increment in increments)
+                            {
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="$('#reminderMileage').val(@(Model.CurrentOdometer + increment))">+@increment.ToString("N0")</button>
+                            }
+                        </div>
+                    }
+                </div>
+                <div id="gbReminderDateField" class="@(showDate ? "" : "d-none")">
+                    <label for="reminderDate">@translator.Translate(userLanguage, "Due on")</label>
+                    <div class="input-group">
+                        <input type="text" id="reminderDate" class="form-control" placeholder="@translator.Translate(userLanguage, "Future date")" value="@Model.Date">
                         <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
                     </div>
-                    <div class="form-check form-check-inline">                        
-                        <input class="form-check-input" onclick="enableRecurring()" type="radio" name="reminderMetricOptions" id="reminderMetricOdometer" value="@(ReminderMetric.Odometer)" checked="@(Model.Metric == ReminderMetric.Odometer)">
-                        <label class="form-check-label" for="reminderMetricOdometer">@translator.Translate(userLanguage,"Odometer")</label>
-                    </div>     
-                    <div class="input-group">
-                        <input type="number" inputmode="numeric" id="reminderMileage" class="form-control" placeholder="@translator.Translate(userLanguage,"Future Odometer Reading")" value="@(isNew ? "" : Model.Mileage)">
-                        @if (isNew)
-                        {
-                            <div class="input-group-text">
-                                <button type="button" class="btn btn-sm btn-primary zero-y-padding" onclick="getLastOdometerReadingAndIncrement('reminderMileage')"><i class="bi bi-plus"></i></button>
-                            </div>
-                        }
-                    </div>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" onclick="enableRecurring()" type="radio" name="reminderMetricOptions" id="reminderMetricBoth" value="@(ReminderMetric.Both)" checked="@(Model.Metric == ReminderMetric.Both)">
-                        <label class="form-check-label" for="reminderMetricBoth">@translator.Translate(userLanguage,"Whichever comes first")</label>
-                    </div>
-                    <div class="d-grid"></div>
-                    <label for="reminderRecordTag">@translator.Translate(userLanguage, "Tags(optional)")</label>
-                    <select multiple class="form-select" id="reminderRecordTag">
-                        @foreach (string tag in Model.Tags)
-                        {
-                            <!option value="@tag">@tag</!option>
-                        }
-                    </select>
                 </div>
-                <div class="col-md-6 col-12">
-                    <label for="reminderNotes">@translator.Translate(userLanguage,"Notes(optional)")<a class="link-underline link-underline-opacity-0" onclick="showLinks(this)"><i class="bi bi-markdown ms-2"></i></a></label>
-                    <textarea id="reminderNotes" class="form-control" rows="5">@Model.Notes</textarea>
-                    <div>
-                        <div class="form-check form-switch form-check-inline">
-                            <input class="form-check-input" type="checkbox" onChange="enableRecurring()" role="switch" id="reminderIsRecurring" checked="@Model.IsRecurring">
-                            <label class="form-check-label" for="reminderIsRecurring">@translator.Translate(userLanguage, "Is Recurring")</label>
-                        </div>
-                        <div class="form-check form-switch form-check-inline">
-                            <input class="form-check-input" type="checkbox" role="switch" id="reminderFixedIntervals" checked="@Model.FixedIntervals" @(Model.IsRecurring ? "" : "disabled")>
-                            <label class="form-check-label" for="reminderFixedIntervals">@translator.Translate(userLanguage, "Fixed Intervals")</label>
-                        </div>
+                <label for="reminderRecordTag">@translator.Translate(userLanguage, "Tags (optional)")</label>
+                <select multiple class="form-select" id="reminderRecordTag">
+                    @foreach (string tag in Model.Tags)
+                    {
+                        <!option value="@tag">@tag</!option>
+                    }
+                </select>
+                <label for="reminderNotes">@translator.Translate(userLanguage, "Notes (optional)")<a class="link-underline link-underline-opacity-0 ms-1" onclick="showLinks(this)" title="Preview markdown"><i class="bi bi-markdown"></i></a></label>
+                <textarea id="reminderNotes" class="form-control" rows="3">@Model.Notes</textarea>
+            </div>
+            <div class="col-md-6 col-12">
+                <label>@translator.Translate(userLanguage, "Repeat")</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" onChange="enableRecurring()" role="switch" id="reminderIsRecurring" checked="@Model.IsRecurring">
+                    <label class="form-check-label" for="reminderIsRecurring">@translator.Translate(userLanguage, "Repeat after it's done")</label>
+                </div>
+                <div class="form-check form-switch gb-fixed-interval">
+                    <input class="form-check-input" type="checkbox" role="switch" id="reminderFixedIntervals" checked="@Model.FixedIntervals" @(Model.IsRecurring ? "" : "disabled")>
+                    <label class="form-check-label" for="reminderFixedIntervals">@translator.Translate(userLanguage, "Fixed intervals")<span class="ms-1 text-body-secondary small">@translator.Translate(userLanguage, "(next due counts from this due point, not from when it was done)")</span></label>
+                </div>
+                <div class="gb-interval-field">
+                <label for="reminderRecurringMileage">@translator.Translate(userLanguage, "Every (distance)")</label>
+                <select class="form-select" onchange="checkCustomMileageInterval()" id="reminderRecurringMileage" @(Model.IsRecurring && (Model.Metric == ReminderMetric.Odometer || Model.Metric == ReminderMetric.Both) ? "" : "disabled")>
+                    <!option value="Other" @(Model.ReminderMileageInterval == ReminderMileageInterval.Other ? "selected" : "")>@(Model.ReminderMileageInterval == ReminderMileageInterval.Other && Model.CustomMileageInterval > 0 ? $"{translator.Translate(userLanguage, "Other")}: {Model.CustomMileageInterval} {distanceUnit}" : $"{translator.Translate(userLanguage, "Other")}")</!option>
+                    <!option value="FiftyMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiftyMiles ? "selected" : "")>50 @distanceUnit</!option>
+                    <!option value="OneHundredMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneHundredMiles ? "selected" : "")>100 @distanceUnit</!option>
+                    <!option value="FiveHundredMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiveHundredMiles ? "selected" : "")>500 @distanceUnit</!option>
+                    <!option value="OneThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneThousandMiles ? "selected" : "")>1,000 @distanceUnit</!option>
+                    <!option value="ThreeThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.ThreeThousandMiles ? "selected" : "")>3,000 @distanceUnit</!option>
+                    <!option value="FourThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FourThousandMiles ? "selected" : "")>4,000 @distanceUnit</!option>
+                    <!option value="FiveThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiveThousandMiles || isNew ? "selected" : "")>5,000 @distanceUnit</!option>
+                    <!option value="SevenThousandFiveHundredMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.SevenThousandFiveHundredMiles ? "selected" : "")>7,500 @distanceUnit</!option>
+                    <!option value="TenThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.TenThousandMiles ? "selected" : "")>10,000 @distanceUnit</!option>
+                    <!option value="FifteenThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FifteenThousandMiles ? "selected" : "")>15,000 @distanceUnit</!option>
+                    <!option value="TwentyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.TwentyThousandMiles ? "selected" : "")>20,000 @distanceUnit</!option>
+                    <!option value="ThirtyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.ThirtyThousandMiles ? "selected" : "")>30,000 @distanceUnit</!option>
+                    <!option value="FortyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FortyThousandMiles ? "selected" : "")>40,000 @distanceUnit</!option>
+                    <!option value="FiftyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiftyThousandMiles ? "selected" : "")>50,000 @distanceUnit</!option>
+                    <!option value="SixtyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.SixtyThousandMiles ? "selected" : "")>60,000 @distanceUnit</!option>
+                    <!option value="OneHundredThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneHundredThousandMiles ? "selected" : "")>100,000 @distanceUnit</!option>
+                    <!option value="OneHundredFiftyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneHundredFiftyThousandMiles ? "selected" : "")>150,000 @distanceUnit</!option>
+                </select>
+                </div>
+                <div class="gb-interval-field">
+                <label for="reminderRecurringMonth">@translator.Translate(userLanguage, "Every (time)")</label>
+                <select class="form-select" onchange="checkCustomMonthInterval()" id="reminderRecurringMonth" @(Model.IsRecurring && (Model.Metric == ReminderMetric.Date || Model.Metric == ReminderMetric.Both) ? "" : "disabled")>
+                    <!option value="Other" @(Model.ReminderMonthInterval == ReminderMonthInterval.Other ? "selected" : "")>@(Model.ReminderMonthInterval == ReminderMonthInterval.Other && Model.CustomMonthInterval > 0 ? $"{translator.Translate(userLanguage, "Other")}: {Model.CustomMonthInterval} {Model.CustomMonthIntervalUnit}" : $"{translator.Translate(userLanguage, "Other")}")</!option>
+                    <!option value="OneMonth" @(Model.ReminderMonthInterval == ReminderMonthInterval.OneMonth ? "selected" : "")>@translator.Translate(userLanguage, "1 Month")</!option>
+                    <!option value="ThreeMonths" @(Model.ReminderMonthInterval == ReminderMonthInterval.ThreeMonths || isNew ? "selected" : "")>@translator.Translate(userLanguage, "3 Months")</!option>
+                    <!option value="SixMonths" @(Model.ReminderMonthInterval == ReminderMonthInterval.SixMonths ? "selected" : "")>@translator.Translate(userLanguage, "6 Months")</!option>
+                    <!option value="OneYear" @(Model.ReminderMonthInterval == ReminderMonthInterval.OneYear ? "selected" : "")>@translator.Translate(userLanguage, "1 Year")</!option>
+                    <!option value="TwoYears" @(Model.ReminderMonthInterval == ReminderMonthInterval.TwoYears ? "selected" : "")>@translator.Translate(userLanguage, "2 Years")</!option>
+                    <!option value="ThreeYears" @(Model.ReminderMonthInterval == ReminderMonthInterval.ThreeYears ? "selected" : "")>@translator.Translate(userLanguage, "3 Years")</!option>
+                    <!option value="FiveYears" @(Model.ReminderMonthInterval == ReminderMonthInterval.FiveYears ? "selected" : "")>@translator.Translate(userLanguage, "5 Years")</!option>
+                </select>
+                </div>
+
+                <fieldset class="gb-fieldset">
+                    <legend><i class="bi bi-bell me-1"></i>@translator.Translate(userLanguage, "Push notifications")</legend>
+                    @if (!ntfy.Enabled)
+                    {
+                        <div class="gb-callout warn mt-2"><i class="bi bi-bell-slash"></i><span>@translator.Translate(userLanguage, "Push notifications are off. Turn on ntfy in Settings > Notifications to get these.")</span></div>
+                    }
+                    <label>@translator.Translate(userLanguage, "Heads-up before it's due")</label>
+                    <div class="gb-segmented" role="radiogroup">
+                        <input type="radio" name="reminderEarlyNotice" id="reminderEarlyDefault" value="Default" onclick="gbReminderEarlyChanged()" checked="@(Model.EarlyNotice == ReminderEarlyNotice.Default)">
+                        <label for="reminderEarlyDefault" title="@defaultSummary">@translator.Translate(userLanguage, "Default")</label>
+                        <input type="radio" name="reminderEarlyNotice" id="reminderEarlyCustom" value="Custom" onclick="gbReminderEarlyChanged()" checked="@(Model.EarlyNotice == ReminderEarlyNotice.Custom)">
+                        <label for="reminderEarlyCustom">@translator.Translate(userLanguage, "Custom")</label>
+                        <input type="radio" name="reminderEarlyNotice" id="reminderEarlyOff" value="Off" onclick="gbReminderEarlyChanged()" checked="@(Model.EarlyNotice == ReminderEarlyNotice.Off)">
+                        <label for="reminderEarlyOff">@translator.Translate(userLanguage, "None")</label>
                     </div>
-                    <label for="reminderRecurringMileage">@translator.Translate(userLanguage,"Odometer")</label>
-                    <select class="form-select" onchange="checkCustomMileageInterval()" id="reminderRecurringMileage" @(Model.IsRecurring && (Model.Metric == ReminderMetric.Odometer || Model.Metric == ReminderMetric.Both) ? "" : "disabled")>
-                        <!option value="Other" @(Model.ReminderMileageInterval == ReminderMileageInterval.Other ? "selected" : "")>@(Model.ReminderMileageInterval == ReminderMileageInterval.Other && Model.CustomMileageInterval > 0 ? $"{translator.Translate(userLanguage, "Other")}: {Model.CustomMileageInterval} {distanceUnit}" : $"{translator.Translate(userLanguage, "Other")}") </!option>
-                        <!option value="FiftyMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiftyMiles ? "selected" : "")>50 @distanceUnit</!option>
-                        <!option value="OneHundredMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneHundredMiles ? "selected" : "")>100 @distanceUnit</!option>
-                        <!option value="FiveHundredMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiveHundredMiles ? "selected" : "")>500 @distanceUnit</!option>
-                        <!option value="OneThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneThousandMiles ? "selected" : "")>1000 @distanceUnit</!option>
-                        <!option value="ThreeThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.ThreeThousandMiles ? "selected" : "")>3000 @distanceUnit</!option>
-                        <!option value="FourThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FourThousandMiles ? "selected" : "")>4000 @distanceUnit</!option>
-                        <!option value="FiveThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiveThousandMiles || isNew ? "selected" : "")>5000 @distanceUnit</!option>
-                        <!option value="SevenThousandFiveHundredMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.SevenThousandFiveHundredMiles ? "selected" : "")>7500 @distanceUnit</!option>
-                        <!option value="TenThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.TenThousandMiles ? "selected" : "")>10000 @distanceUnit</!option>
-                        <!option value="FifteenThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FifteenThousandMiles ? "selected" : "")>15000 @distanceUnit</!option>
-                        <!option value="TwentyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.TwentyThousandMiles ? "selected" : "")>20000 @distanceUnit</!option>
-                        <!option value="ThirtyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.ThirtyThousandMiles ? "selected" : "")>30000 @distanceUnit</!option>
-                        <!option value="FortyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FortyThousandMiles ? "selected" : "")>40000 @distanceUnit</!option>
-                        <!option value="FiftyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.FiftyThousandMiles ? "selected" : "")>50000 @distanceUnit</!option>
-                        <!option value="SixtyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.SixtyThousandMiles ? "selected" : "")>60000 @distanceUnit</!option>
-                        <!option value="OneHundredThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneHundredThousandMiles ? "selected" : "")>100000 @distanceUnit</!option>
-                        <!option value="OneHundredFiftyThousandMiles" @(Model.ReminderMileageInterval == ReminderMileageInterval.OneHundredFiftyThousandMiles ? "selected" : "")>150000 @distanceUnit</!option>
-                    </select>
-                    <label for="reminderRecurringMonth">@translator.Translate(userLanguage, "Time")</label>
-                    <select class="form-select" onchange="checkCustomMonthInterval()" id="reminderRecurringMonth" @(Model.IsRecurring && (Model.Metric == ReminderMetric.Date || Model.Metric == ReminderMetric.Both) ? "" : "disabled")>
-                        <!option value="Other" @(Model.ReminderMonthInterval == ReminderMonthInterval.Other ? "selected" : "")>@(Model.ReminderMonthInterval == ReminderMonthInterval.Other && Model.CustomMonthInterval > 0 ? $"{translator.Translate(userLanguage, "Other")}: {Model.CustomMonthInterval} {Model.CustomMonthIntervalUnit}" : $"{translator.Translate(userLanguage, "Other")}") </!option>
-                        <!option value="OneMonth" @(Model.ReminderMonthInterval == ReminderMonthInterval.OneMonth ? "selected" : "")>@translator.Translate(userLanguage, "1 Month")</!option>
-                        <!option value="ThreeMonths" @(Model.ReminderMonthInterval == ReminderMonthInterval.ThreeMonths || isNew ? "selected" : "")>@translator.Translate(userLanguage,"3 Months")</!option>
-                        <!option value="SixMonths" @(Model.ReminderMonthInterval == ReminderMonthInterval.SixMonths ? "selected" : "")>@translator.Translate(userLanguage,"6 Months")</!option>
-                        <!option value="OneYear" @(Model.ReminderMonthInterval == ReminderMonthInterval.OneYear ? "selected" : "")>@translator.Translate(userLanguage, "1 Year")</!option>
-                        <!option value="TwoYears" @(Model.ReminderMonthInterval == ReminderMonthInterval.TwoYears ? "selected" : "")>@translator.Translate(userLanguage, "2 Years")</!option>
-                        <!option value="ThreeYears" @(Model.ReminderMonthInterval == ReminderMonthInterval.ThreeYears ? "selected" : "")>@translator.Translate(userLanguage, "3 Years")</!option>
-                        <!option value="FiveYears" @(Model.ReminderMonthInterval == ReminderMonthInterval.FiveYears ? "selected" : "")>@translator.Translate(userLanguage, "5 Years")</!option>
-                    </select>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" role="switch" onchange="toggleCustomThresholds()" id="reminderUseCustomThresholds" checked="@Model.UseCustomThresholds">
-                        <label class="form-check-label" for="reminderUseCustomThresholds">@translator.Translate(userLanguage, "Use Custom Thresholds")</label>
-                    </div>
-                    <div class="collapse @(Model.UseCustomThresholds ? "show" : "")" id="reminderCustomThresholds">
+                    <p class="small text-body-secondary mt-2 mb-0 @(Model.EarlyNotice == ReminderEarlyNotice.Default ? "" : "d-none")" id="gbEarlyDefaultHint">@translator.Translate(userLanguage, "Uses your default:") @defaultSummary @translator.Translate(userLanguage, "before it's due.")</p>
+                    <div class="gb-early mt-1 @(Model.EarlyNotice == ReminderEarlyNotice.Custom ? "" : "d-none")" id="gbEarlyCustomFields">
                         <div>
-                            <label for="reminderUrgentDays">@translator.Translate(userLanguage, "Urgent(Days)")</label>
-                            <input type="text" id="reminderUrgentDays" class="form-control" placeholder="@translator.Translate(userLanguage, "Urgent")" value="@Model.CustomThresholds.UrgentDays">
-                            <label for="reminderVeryUrgentDays">@translator.Translate(userLanguage, "Very Urgent(Days)")</label>
-                            <input type="text" id="reminderVeryUrgentDays" class="form-control" placeholder="@translator.Translate(userLanguage, "Very Urgent")" value="@Model.CustomThresholds.VeryUrgentDays">
-                            <label for="reminderUrgentDistance">@translator.Translate(userLanguage, "Urgent(Distance)")</label>
-                            <input type="text" id="reminderUrgentDistance" class="form-control" placeholder="@translator.Translate(userLanguage, "Urgent")" value="@Model.CustomThresholds.UrgentDistance">
-                            <label for="reminderVeryUrgentDistance">@translator.Translate(userLanguage, "Very Urgent(Distance)")</label>
-                            <input type="text" id="reminderVeryUrgentDistance" class="form-control" placeholder="@translator.Translate(userLanguage, "Very Urgent")" value="@Model.CustomThresholds.VeryUrgentDistance">
+                            <label for="reminderEarlyDistance">@translator.Translate(userLanguage, "Distance early")</label>
+                            <div class="input-group">
+                                <input type="number" inputmode="numeric" min="0" id="reminderEarlyDistance" class="form-control" value="@(Model.EarlyNotice == ReminderEarlyNotice.Custom ? Model.EarlyNoticeDistance : ntfy.HeadsUpDistance)">
+                                <span class="input-group-text">@shortUnit</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="reminderEarlyDays">@translator.Translate(userLanguage, "Days early")</label>
+                            <div class="input-group">
+                                <input type="number" inputmode="numeric" min="0" id="reminderEarlyDays" class="form-control" value="@(Model.EarlyNotice == ReminderEarlyNotice.Custom ? Model.EarlyNoticeDays : ntfy.HeadsUpDays)">
+                                <span class="input-group-text">@translator.Translate(userLanguage, "days")</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mt-3 mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="reminderMuteNotifications" checked="@Model.MuteNotifications">
+                        <label class="form-check-label" for="reminderMuteNotifications">@translator.Translate(userLanguage, "Mute all notifications for this reminder")</label>
+                    </div>
+                </fieldset>
+
+                <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" role="switch" onchange="toggleCustomThresholds()" id="reminderUseCustomThresholds" checked="@Model.UseCustomThresholds">
+                    <label class="form-check-label" for="reminderUseCustomThresholds">@translator.Translate(userLanguage, "Custom urgency thresholds")</label>
+                </div>
+                <div class="collapse @(Model.UseCustomThresholds ? "show" : "")" id="reminderCustomThresholds">
+                    <div class="gb-early">
+                        <div>
+                            <label for="reminderUrgentDays">@translator.Translate(userLanguage, "Due soon (days)")</label>
+                            <input type="text" inputmode="numeric" id="reminderUrgentDays" class="form-control" value="@Model.CustomThresholds.UrgentDays">
+                        </div>
+                        <div>
+                            <label for="reminderVeryUrgentDays">@translator.Translate(userLanguage, "Urgent (days)")</label>
+                            <input type="text" inputmode="numeric" id="reminderVeryUrgentDays" class="form-control" value="@Model.CustomThresholds.VeryUrgentDays">
+                        </div>
+                        <div>
+                            <label for="reminderUrgentDistance">@translator.Translate(userLanguage, "Due soon (distance)")</label>
+                            <input type="text" inputmode="numeric" id="reminderUrgentDistance" class="form-control" value="@Model.CustomThresholds.UrgentDistance">
+                        </div>
+                        <div>
+                            <label for="reminderVeryUrgentDistance">@translator.Translate(userLanguage, "Urgent (distance)")</label>
+                            <input type="text" inputmode="numeric" id="reminderVeryUrgentDistance" class="form-control" value="@Model.CustomThresholds.VeryUrgentDistance">
                         </div>
                     </div>
                 </div>
@@ -136,20 +199,20 @@
 <div class="modal-footer">
     @if (!isNew)
     {
+        <button type="button" class="btn btn-outline-danger" onclick="deleteReminderRecord(@Model.Id)" style="margin-right:auto;"><i class="bi bi-trash"></i>@translator.Translate(userLanguage, "Delete")</button>
         @if (Model.IsRecurring)
         {
-            <button type="button" class="btn btn-warning" onclick="createPlanRecordFromReminder(@Model.Id)">@translator.Translate(userLanguage, "Plan")</button>
+            <button type="button" class="btn btn-secondary" onclick="createPlanRecordFromReminder(@Model.Id)"><i class="bi bi-kanban"></i>@translator.Translate(userLanguage, "Plan it")</button>
         }
-        <button type="button" class="btn btn-danger" onclick="deleteReminderRecord(@Model.Id)" style="margin-right:auto;">@translator.Translate(userLanguage, "Delete")</button>
     }
     <button type="button" class="btn btn-secondary" onclick="hideAddReminderRecordModal()">@translator.Translate(userLanguage, "Cancel")</button>
     @if (isNew)
     {
-        <button type="button" class="btn btn-primary" onclick="saveReminderRecordToVehicle()">@translator.Translate(userLanguage, "Add New Reminder")</button>
+        <button type="button" class="btn btn-primary" onclick="saveReminderRecordToVehicle()">@translator.Translate(userLanguage, "Add reminder")</button>
     }
-    else if (!isNew)
+    else
     {
-        <button type="button" class="btn btn-primary" onclick="saveReminderRecordToVehicle(true)">@translator.Translate(userLanguage, "Edit Reminder")</button>
+        <button type="button" class="btn btn-primary" onclick="saveReminderRecordToVehicle(true)">@translator.Translate(userLanguage, "Save changes")</button>
     }
 </div>
 <script>
@@ -157,10 +220,10 @@
     var customMonthInterval = @Model.CustomMonthInterval;
     var customMonthIntervalUnit = decodeHTMLEntities('@Model.CustomMonthIntervalUnit');
     function getReminderRecordModelData() {
-        return { 
-            id: @Model.Id, 
+        return {
+            id: @Model.Id,
             createdFromRecord: @Model.CreatedFromRecord.ToString().ToLower(),
-            mileageInterval: decodeHTMLEntities('@Model.ReminderMileageInterval.ToString()'), 
+            mileageInterval: decodeHTMLEntities('@Model.ReminderMileageInterval.ToString()'),
             monthInterval: decodeHTMLEntities('@Model.ReminderMonthInterval.ToString()'),
             distanceUnit: decodeHTMLEntities('@distanceUnit')
         }

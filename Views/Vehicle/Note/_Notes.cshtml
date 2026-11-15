@@ -6,21 +6,12 @@
     var recordTags = Model.SelectMany(x => x.Tags).Distinct();
     var userConfig = config.GetUserConfig(User);
     var userLanguage = userConfig.UserLanguage;
-    var enableCsvImports = userConfig.EnableCsvImports;
-    var extraFields = new List<string>();
-    if (userConfig.EnableExtraFieldColumns)
-    {
-        extraFields = Model.SelectMany(x => x.ExtraFields).Select(y => y.Name).Distinct().ToList();
-    }
-    var userColumnPreferences = userConfig.UserColumnPreferences.Where(x => x.Tab == ImportMode.NoteRecord);
-    var noteColumnStyle = userConfig.EnableNotesColumnWrap ? "text-wrap break-all" : "text-truncate";
-    var noteColumnLength = userConfig.EnableNotesColumnWrap ? 200 : 100;
 }
 <div class="d-flex flex-column vehicleTabPane">
 <div class="row">
     <div class="d-flex justify-content-between">
         <div class="d-flex align-items-center flex-wrap gap-2">
-            <span class="badge bg-success" data-aggregate-type="count">@($"{translator.Translate(userLanguage,"# of Notes")}: {Model.Count()}")</span>
+            <span class="badge" data-aggregate-type="count" data-one="@translator.Translate(userLanguage, "note")" data-many="@translator.Translate(userLanguage, "notes")">@GloveboxFormat.Count(Model.Count(), translator.Translate(userLanguage, "note"), translator.Translate(userLanguage, "notes"))</span>
             @foreach (string recordTag in recordTags)
             {
                 <span onclick="filterTable('notes-tab-pane', this)" class="user-select-none rounded-pill badge bg-secondary tagfilter" style="cursor:pointer;">@recordTag</span>
@@ -33,53 +24,22 @@
             </datalist>
         </div>
         <div class="lubelogger-record-add">
-                <div class="btn-group">
-                    <button onclick="showAddNoteModal()" class="btn btn-primary btn-md mt-1 mb-1"><i class="bi bi-pencil-square me-2"></i>@translator.Translate(userLanguage, "Add Note")</button>
-                    <button type="button" class="btn btn-md btn-primary btn-md mt-1 mb-1 dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span class="visually-hidden">Toggle Dropdown</span>
-                    </button>
-                    <ul class="dropdown-menu record-dropdown">
-                        <li><a class="dropdown-item" href="#" onclick="printTab()">@translator.Translate(userLanguage, "Print")</a></li>
-                        <li><a class="dropdown-item" href="#" onclick="searchTableRows('notes-tab-pane')">@translator.Translate(userLanguage, "Search")</a></li>
-                        <li class="nav-no-copy"><hr class="dropdown-divider"></li>
-                        <li class="nav-no-copy">
-                            <div class="list-group-item">
-                                <input class="btn-check" type="checkbox" id="chkSelectMode" onchange="checkSelectModeToggle()">
-                                <label class="dropdown-item" for="chkSelectMode">@translator.Translate(userLanguage, "Select Mode")</label>
-                            </div>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><h6 class="dropdown-header">@translator.Translate(userLanguage, "Visible Columns")</h6></li>
-                        <li class="dropdown-item" draggable="true" ondragstart="handleTableColumnDragStart(event)" ondragover="handleTableColumnDragOver(event)" ondragend="handleTableColumnDragEnd('NoteRecord')">
-                            <div class="list-group-item">
-                                <input class="form-check-input col-visible-toggle" data-column-toggle='description' onChange="showTableColumns(this, 'NoteRecord')" type="checkbox" id="chkCol_Description" checked>
-                                <label class="form-check-label stretched-link" for="chkCol_Description">@translator.Translate(userLanguage, "Description")</label>
-                            </div>
-                        </li>
-                        <li class="dropdown-item" draggable="true" ondragstart="handleTableColumnDragStart(event)" ondragover="handleTableColumnDragOver(event)" ondragend="handleTableColumnDragEnd('NoteRecord')">
-                            <div class="list-group-item">
-                                <input class="form-check-input col-visible-toggle" data-column-toggle='notes' onChange="showTableColumns(this, 'NoteRecord')" type="checkbox" id="chkCol_Notes" checked>
-                                <label class="form-check-label stretched-link" for="chkCol_Notes">@translator.Translate(userLanguage, "Notes")</label>
-                            </div>
-                        </li>
-                        <li class="dropdown-item" draggable="true" ondragstart="handleTableColumnDragStart(event)" ondragover="handleTableColumnDragOver(event)" ondragend="handleTableColumnDragEnd('NoteRecord')">
-                            <div class="list-group-item">
-                                <input class="form-check-input col-visible-toggle" data-column-toggle='attachments' onChange="showTableColumns(this, 'NoteRecord')" type="checkbox" id="chkCol_Attachment">
-                                <label class="form-check-label stretched-link" for="chkCol_Attachment">@translator.Translate(userLanguage, "Attachments")</label>
-                            </div>
-                        </li>
-                        @foreach (string extraFieldColumn in extraFields)
-                        {
-                            var elementId = Guid.NewGuid();
-                            <li class="dropdown-item" draggable="true" ondragstart="handleTableColumnDragStart(event)" ondragover="handleTableColumnDragOver(event)" ondragend="handleTableColumnDragEnd('NoteRecord')">
-                                <div class="list-group-item">
-                                    <input class="form-check-input col-visible-toggle" data-column-toggle='@extraFieldColumn' onChange="showTableColumns(this, 'NoteRecord')" type="checkbox" id="@elementId">
-                                    <label class="form-check-label stretched-link" for="@elementId">@extraFieldColumn</label>
-                                </div>
-                            </li>
-                        }
-                    </ul>
-                </div>
+            <div class="btn-group">
+                <button onclick="showAddNoteModal()" class="btn btn-primary btn-md"><i class="bi bi-plus-lg"></i><span class="gb-btn-label">@translator.Translate(userLanguage, "Add note")</span></button>
+                <button type="button" class="btn btn-md btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">@translator.Translate(userLanguage, "More actions")</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end record-dropdown">
+                    <li><a class="dropdown-item" href="#" onclick="printTab()"><i class="bi bi-printer"></i>@translator.Translate(userLanguage, "Print")</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <div class="list-group-item">
+                            <input class="btn-check" type="checkbox" id="chkSelectMode" onchange="checkSelectModeToggle()">
+                            <label class="dropdown-item" for="chkSelectMode"><i class="bi bi-check2-square"></i>@translator.Translate(userLanguage, "Select mode")</label>
+                        </div>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 </div>
@@ -90,47 +50,57 @@
                 <img src="@config.GetLogoUrl()" class="lubelogger-logo" />
             </div>
         </div>
-        <table class="table table-hover @(userConfig.UseGridInMobile ? "" : "ll-responsive-table")">
+        @if (!Model.Any())
+        {
+            <div class="gb-history">
+                <div class="gb-due-empty">
+                    <i class="bi bi-journal-text" style="color:var(--gb-text-3)"></i>
+                    <div class="flex-grow-1">
+                        <strong class="d-block">@translator.Translate(userLanguage, "No notes yet")</strong>
+                        <span>@translator.Translate(userLanguage, "Keep tire sizes, part numbers, torque specs and anything else you'd otherwise lose. Markdown and attachments are supported.")</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="showAddNoteModal()"><i class="bi bi-plus-lg"></i>@translator.Translate(userLanguage, "Add note")</button>
+                </div>
+            </div>
+        }
+        <table class="table @(Model.Any() ? "" : "d-none")">
             <thead class="sticky-top">
                 <tr class="d-flex">
-                    <th scope="col" class="col-4 col-md-3 flex-grow-1 flex-shrink-1 text-truncate" data-column="description">@translator.Translate(userLanguage, "Description")</th>
-                    <th scope="col" class="col-8 col-md-9 flex-grow-1 flex-shrink-1 text-truncate" data-column="notes">@translator.Translate(userLanguage, "Note")</th>
-                    <th scope="col" class="col-1 flex-grow-1 flex-shrink-1 text-truncate" style='display:none;' data-column="attachments">@translator.Translate(userLanguage, "Attachments")</th>
-                    @foreach (string extraFieldColumn in extraFields)
-                    {
-                        <th scope="col" style='display:none;' class="col-2 flex-grow-1 flex-shrink-1 text-truncate" data-column="@extraFieldColumn">@extraFieldColumn</th>
-                    }
+                    <th scope="col" class="col-4 flex-grow-1" data-column="description">@translator.Translate(userLanguage, "Description")</th>
+                    <th scope="col" class="col-8 flex-grow-1" data-column="notes">@translator.Translate(userLanguage, "Note")</th>
+                    <th scope="col" class="col-1 flex-grow-1" data-column="attachments">@translator.Translate(userLanguage, "Attachments")</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (Note note in Model)
                 {
-                    <tr class="d-flex user-select-none" style="cursor:pointer;" onmouseup="stopEvent()" ontouchstart="detectRowLongTouch(this)" ontouchend="detectRowTouchEndPremature(this)" data-rowId="@note.Id" oncontextmenu="showTableContextMenu(this)" onmousemove="rangeMouseMove(this)" onclick="handleTableRowClick(this, showEditNoteModal,@note.Id)" data-tags='@string.Join(" ", note.Tags)'>
-                        @if (note.Pinned)
-                        {
-                                <td data-label="@translator.Translate(userLanguage, "Description")" class="col-4 col-md-3 flex-grow-1 flex-shrink-1 text-truncate" data-column="description"><span><i class='bi bi-pin-fill me-2'></i>@note.Description</span></td>
-                        } else
-                        {
-                            <td data-label="@translator.Translate(userLanguage, "Description")" class="col-4 col-md-3 flex-grow-1 flex-shrink-1 text-truncate" data-column="description">@note.Description</td>
-                        }
-                        <td data-label="@translator.Translate(userLanguage, "Note")" class="col-8 col-md-9 flex-grow-1 flex-shrink-1 @noteColumnStyle" data-record-type="cost" data-column="notes">@StaticHelper.TruncateStrings(note.NoteText, noteColumnLength)</td>
-                        <td data-label="@translator.Translate(userLanguage, "Attachments")" class="col-1 flex-grow-1 flex-shrink-1 text-truncate" style='display:none;' data-column="attachments">@await Html.PartialAsync("_AttachmentColumn", note.Files)</td>
-                        @foreach (string extraFieldColumn in extraFields)
-                        {
-                            <td data-label="@extraFieldColumn" class="col-2 flex-grow-1 flex-shrink-1 text-truncate" style='display:none;' data-column="@extraFieldColumn">
-                                @{
-                                    var extraFieldValue = note.ExtraFields.Where(x => x.Name == extraFieldColumn)?.FirstOrDefault()?.Value ?? "";
-                                    if (!string.IsNullOrWhiteSpace(extraFieldValue) && Uri.IsWellFormedUriString(extraFieldValue, UriKind.Absolute))
+                    var images = note.Files.Where(x => GloveboxFormat.FileKind(x.Location) == "image").Take(3).ToList();
+                    var otherCount = note.Files.Count - images.Count;
+                    <tr class="d-flex user-select-none" style="cursor:pointer;" onmouseup="stopEvent()" ontouchstart="detectRowLongTouch(this)" ontouchend="detectRowTouchEndPremature(this)" data-rowId="@note.Id" oncontextmenu="showTableContextMenu(this)" onmousemove="rangeMouseMove(this)" onclick="handleTableRowClick(this, showNoteViewer, @note.Id)" data-tags='@string.Join(" ", note.Tags)'>
+                        <td class="col-4 flex-grow-1" data-column="description">@if (note.Pinned){<i class='bi bi-pin-fill' title="@translator.Translate(userLanguage, "Pinned")"></i>}@note.Description</td>
+                        <td class="col-8 flex-grow-1" data-column="notes" data-record-type="cost">@GloveboxFormat.MarkdownExcerpt(note.NoteText, 320)</td>
+                        <td class="col-1 flex-grow-1" data-column="attachments">@if (note.Files.Any() || note.Tags.Any())
+                            {
+                                <div class="gb-note-foot">
+                                    @if (images.Any())
                                     {
-                                        <a href="@extraFieldValue" onclick="noPropagation()" target="_blank">@StaticHelper.TruncateStrings(extraFieldValue)</a>
+                                        <span class="gb-note-thumbs">
+                                            @foreach (var image in images)
+                                            {
+                                                <img src="@image.Location" alt="" loading="lazy" />
+                                            }
+                                        </span>
                                     }
-                                    else
+                                    @if (otherCount > 0)
                                     {
-                                        @extraFieldValue
+                                        <span class="gb-note-chip"><i class="bi bi-paperclip"></i>@otherCount</span>
                                     }
-                                }
-                            </td>
-                        }
+                                    @foreach (var tag in note.Tags)
+                                    {
+                                        <span class="gb-note-chip">@tag</span>
+                                    }
+                                </div>
+                            }</td>
                     </tr>
                 }
             </tbody>
@@ -144,42 +114,28 @@
         </table>
     </div>
 </div>
-<div class="row lubelogger-record-nav pt-1 hideOnPrint">
-    <div class="d-flex justify-content-between">
-        <button onclick="toggleSelectMode(this)" class="btn btn-outline-secondary btn-md mt-1 mb-1 select-mode-toggle"><i class="bi bi-check2-square"></i></button>
-            <button onclick="showAddNoteModal()" class="btn btn-primary btn-md mt-1 mb-1"><i class="bi bi-plus-lg"></i></button>
-        <div>
-            <button class="btn btn-outline-secondary btn-md mt-1 mb-1" onclick="showDropDownForRecordNav(this)" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-three-dots"></i></button>
-            <ul class="dropdown-menu record-dropdown">
-            </ul>
-        </div>
-    </div>
-</div>
 </div>
 
 <div class="modal fade" data-bs-focus="false" id="noteModal" tabindex="-1" role="dialog" aria-hidden="true" onpaste="handleModalPaste(event)" @StaticHelper.GetStaticModalAttribute(userConfig.EnablePersistentDialog)>
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content" id="noteModalContent">
         </div>
     </div>
 </div>
 
 <ul class="table-context-menu dropdown-menu" style="display:none;">
-    <li><a class="context-menu-multiple context-menu-select-all dropdown-item" href="#" onclick="selectAllRows()"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Select All")</span><i class="bi bi-check-square"></i></div></a></li>
-    <li><a class="context-menu-multiple context-menu-deselect-all dropdown-item" href="#" onclick="clearSelectedRows()"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Deselect All")</span><i class="bi bi-x-square"></i></div></a></li>
+    <li><a class="context-menu-multiple context-menu-select-all dropdown-item" href="#" onclick="selectAllRows()"><i class="bi bi-check-square"></i><span>@translator.Translate(userLanguage, "Select all")</span></a></li>
+    <li><a class="context-menu-multiple context-menu-deselect-all dropdown-item" href="#" onclick="clearSelectedRows()"><i class="bi bi-x-square"></i><span>@translator.Translate(userLanguage, "Deselect all")</span></a></li>
     <li><hr class="context-menu-multiple dropdown-divider"></li>
-    <li><a class="dropdown-item" href="#" onclick="pinNotes(selectedRow, true)"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Toggle Pin")</span><i class="bi bi-pin-angle-fill"></i></div></a></li>
-    <li><a class="dropdown-item" href="#" onclick="pinNotes(selectedRow, false, true)"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Pin")</span><i class="bi bi-pin-angle-fill"></i></div></a></li>
-    <li><a class="dropdown-item" href="#" onclick="pinNotes(selectedRow, false, false)"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Unpin")</span><i class="bi bi-pin-angle"></i></div></a></li>
+    <li><a class="dropdown-item" href="#" onclick="pinNotes(selectedRow, true)"><i class="bi bi-pin-angle-fill"></i><span>@translator.Translate(userLanguage, "Toggle pin")</span></a></li>
+    <li><a class="dropdown-item" href="#" onclick="pinNotes(selectedRow, false, true)"><i class="bi bi-pin-angle-fill"></i><span>@translator.Translate(userLanguage, "Pin")</span></a></li>
+    <li><a class="dropdown-item" href="#" onclick="pinNotes(selectedRow, false, false)"><i class="bi bi-pin-angle"></i><span>@translator.Translate(userLanguage, "Unpin")</span></a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="#" onclick="duplicateRecords(selectedRow, 'NoteRecord')"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Duplicate")</span><i class="bi bi-copy"></i></div></a></li>
-    <li><a class="dropdown-item" href="#" onclick="duplicateRecordsToOtherVehicles(selectedRow, 'NoteRecord')"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Duplicate To Vehicle")</span><i class="bi bi-copy"></i></div></a></li>
+    <li><a class="context-menu-active-single dropdown-item" href="#" onclick="showEditNoteModal(selectedRow[0])"><i class="bi bi-pencil"></i><span>@translator.Translate(userLanguage, "Edit")</span></a></li>
+    <li><a class="dropdown-item" href="#" onclick="duplicateRecords(selectedRow, 'NoteRecord')"><i class="bi bi-copy"></i><span>@translator.Translate(userLanguage, "Duplicate")</span></a></li>
+    <li><a class="dropdown-item" href="#" onclick="duplicateRecordsToOtherVehicles(selectedRow, 'NoteRecord')"><i class="bi bi-copy"></i><span>@translator.Translate(userLanguage, "Duplicate to vehicle")</span></a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="#" onclick="printTabStickers(selectedRow, 'NoteRecord')"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Print")</span><i class="bi bi-printer"></i></div></a></li>
+    <li><a class="dropdown-item" href="#" onclick="printTabStickers(selectedRow, 'NoteRecord')"><i class="bi bi-printer"></i><span>@translator.Translate(userLanguage, "Print")</span></a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item text-danger" href="#" onclick="deleteRecords(selectedRow, 'NoteRecord')"><div class="d-flex justify-content-between"><span class="me-5">@translator.Translate(userLanguage, "Delete")</span><i class="bi bi-trash"></i></div></a></li>
+    <li><a class="dropdown-item text-danger" href="#" onclick="deleteRecords(selectedRow, 'NoteRecord')"><i class="bi bi-trash"></i><span>@translator.Translate(userLanguage, "Delete")</span></a></li>
 </ul>
-@if (userColumnPreferences.Any())
-{
-    @await Html.PartialAsync("_UserColumnPreferences", userColumnPreferences)
-}

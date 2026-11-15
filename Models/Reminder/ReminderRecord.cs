@@ -1,4 +1,4 @@
-﻿namespace CarCareTracker.Models
+namespace CarCareTracker.Models
 {
     public class ReminderRecord
     {
@@ -19,5 +19,12 @@
         public ReminderMonthInterval ReminderMonthInterval { get; set; } = ReminderMonthInterval.OneYear;
         public ReminderMetric Metric { get; set; } = ReminderMetric.Date;
         public List<string> Tags { get; set; } = new List<string>();
+        /// <summary>
+        /// Glovebox: early (heads-up) notification window for push notifications.
+        /// </summary>
+        public ReminderEarlyNotice EarlyNotice { get; set; } = ReminderEarlyNotice.Default;
+        public int EarlyNoticeDistance { get; set; } = 0;
+        public int EarlyNoticeDays { get; set; } = 0;
+        public bool MuteNotifications { get; set; } = false;
     }
 }
