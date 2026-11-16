@@ -1,4 +1,5 @@
 ﻿@using CarCareTracker.Helper
+@using System.Globalization
 @inject IConfigHelper config
 @inject ITranslationHelper translator
 @model VehicleHistoryViewModel
@@ -6,175 +7,290 @@
     var userConfig = config.GetUserConfig(User);
     var hideZero = userConfig.HideZero;
     var userLanguage = userConfig.UserLanguage;
-    var extraFields = Model.ReportParameters.ExtraFields;
+    var extraFields = Model.ReportParameters.ExtraFields ?? new List<string>();
+    var visible = Model.ReportParameters.VisibleColumns ?? new List<string>();
+    var vehicle = Model.VehicleData;
+    var vehicleName = GloveboxFormat.VehicleName(vehicle);
+    var unit = Model.UnitLabel;
+    var showCosts = Model.ShowCosts;
+    Func<string, string> T = s => translator.Translate(userLanguage, s);
+    Func<DateTime, string> longDate = d => d.ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+    var monthDayPattern = CultureInfo.CurrentCulture.DateTimeFormat.MonthDayPattern.Replace("MMMM", "MMM");
+    Func<decimal, string> money = c => c.ToString("C", CultureInfo.CurrentCulture);
+    Func<decimal, string> pct = v => v.ToString("0.#", CultureInfo.InvariantCulture) + "%";
+
+    bool showType = visible.Contains(nameof(GenericReportModel.DataType));
+    bool showDate = visible.Contains(nameof(GenericReportModel.Date));
+    bool showOdometer = visible.Contains(nameof(GenericReportModel.Odometer));
+    bool showDescription = visible.Contains(nameof(GenericReportModel.Description));
+    bool showNotes = visible.Contains(nameof(GenericReportModel.Notes));
+    bool showCostColumn = showCosts && visible.Contains(nameof(GenericReportModel.Cost));
+    int columnCount = new[] { showType, showDate, showOdometer, showDescription, showNotes, showCostColumn }.Count(x => x) + extraFields.Count;
+    if (columnCount == 0) { columnCount = 1; }
+
+    string period;
+    if (!string.IsNullOrWhiteSpace(Model.StartDate) && !string.IsNullOrWhiteSpace(Model.EndDate)
+        && DateTime.TryParse(Model.StartDate, out DateTime periodStart) && DateTime.TryParse(Model.EndDate, out DateTime periodEnd))
+    {
+        period = $"{longDate(periodStart)} {T("to")} {longDate(periodEnd)}";
+    }
+    else if (Model.FirstRecordDate.HasValue && Model.LastRecordDate.HasValue)
+    {
+        period = $"{longDate(Model.FirstRecordDate.Value)} {T("to")} {longDate(Model.LastRecordDate.Value)}";
+    }
+    else
+    {
+        period = T("No records");
+    }
+    var recordCount = Model.VehicleHistory.Count;
+    var recordMix = string.Join(", ", Model.CategoryTotals.OrderByDescending(x => x.Count).Select(x => $"{x.Count} {T(x.Label).ToLower()}"));
+    string fuelType = vehicle.IsElectric ? T("Electric") : vehicle.IsDiesel ? T("Diesel") : T("Gasoline");
+    var odometerDigits = Model.MaxOdometer.ToString(CultureInfo.InvariantCulture).PadLeft(6, '0');
+    var totalOwnership = Model.TotalCost + Model.TotalGasCost;
+    var maxCategory = Model.CategoryTotals.Any() ? Model.CategoryTotals.Max(x => x.Cost) : 0;
+    var maxYear = Model.YearTotals.Any() ? Model.YearTotals.Max(x => x.Cost) : 0;
+    //text for the printed page footer; CSS string, so escape it rather than HTML-encode it
+    var footerText = $"{vehicleName}, {T("maintenance report")}";
+    var footerCss = footerText.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("<", "\\3C ").Replace("\n", " ").Replace("\r", " ");
+    var pageText = T("Page");
+    var ofText = T("of");
 }
-<div style="page-break-after: always;">
-    <div class="row mt-2">
-        <div class="d-flex">
-            <img src="@config.GetLogoUrl()" class="lubelogger-logo" />
-            <div class="ms-5">
-                <span class="display-6">
-                    @translator.Translate(userLanguage, "Vehicle Maintenance Report")
-                </span>
-                @if (!string.IsNullOrWhiteSpace(Model.StartDate) && !string.IsNullOrWhiteSpace(Model.EndDate))
+<style>
+    @@page gbreport {
+        size: letter;
+        margin: 0.55in 0.55in 0.7in;
+        @@bottom-left { content: "@Html.Raw(footerCss)"; font: 400 9pt Barlow, system-ui, sans-serif; color: #4A5668; }
+        @@bottom-right { content: "@Html.Raw(pageText.Replace("\"", ""))  " counter(page) " @Html.Raw(ofText.Replace("\"", "")) " counter(pages); font: 400 9pt Barlow, system-ui, sans-serif; color: #4A5668; }
+    }
+</style>
+<div class="gbr" data-report="vehicle-history">
+    <section class="gbr-summary">
+        <header class="gbr-masthead">
+            <img src="@config.GetLogoUrl()" class="gbr-logo" alt="" />
+            <div class="gbr-masthead-meta">@T("Vehicle maintenance report")<br />@T("Generated") @longDate(Model.GeneratedOn)</div>
+        </header>
+
+        <div class="gbr-vehicle">
+            <div class="gbr-vehicle-text">
+                <h1>@vehicleName</h1>
+                <dl class="gbr-facts">
+                    @if (!string.IsNullOrWhiteSpace(vehicle.LicensePlate))
+                    {
+                        <dt>@T("License plate")</dt><dd>@vehicle.LicensePlate</dd>
+                    }
+                    @foreach (ExtraField extraField in vehicle.ExtraFields.Where(x => !string.IsNullOrWhiteSpace(x.Value)))
+                    {
+                        <dt>@extraField.Name</dt><dd>@extraField.Value</dd>
+                    }
+                    <dt>@T("Fuel type")</dt><dd>@fuelType</dd>
+                    <dt>@T("Period covered")</dt><dd>@period</dd>
+                    <dt>@T("Records")</dt><dd>@recordCount @(recordCount == 1 ? T("record") : T("records"))@(string.IsNullOrWhiteSpace(recordMix) ? "" : $": {recordMix}")</dd>
+                    @if (!string.IsNullOrWhiteSpace(Model.DaysOwned))
+                    {
+                        <dt>@T("Owned")</dt><dd>@Model.DaysOwned @T("days")</dd>
+                    }
+                    @if (showCosts && Model.TotalDepreciation != default)
+                    {
+                        <dt>@(Model.TotalDepreciation > 0 ? T("Depreciation") : T("Appreciation"))</dt>
+                        <dd>@money(Math.Abs(Model.TotalDepreciation))@(Model.DepreciationPerDay != default ? $", {money(Model.DepreciationPerDay)}/{T("day")}" : "")@(Model.DepreciationPerMile != default ? $", {money(Model.DepreciationPerMile)}/{unit}" : "")</dd>
+                    }
+                </dl>
+            </div>
+            @if (GloveboxFormat.HasPhoto(vehicle.ImageLocation))
+            {
+                <img class="gbr-photo" src="@vehicle.ImageLocation" alt="" />
+            }
+        </div>
+
+        <div class="gbr-band">
+            <div class="gbr-stat gbr-stat--odo">
+                <div class="gbr-label">@T("Odometer at last record")</div>
+                <div class="gbr-drums" aria-label="@Model.MaxOdometer.ToString("N0") @unit">
+                    @foreach (char digit in odometerDigits)
+                    {
+                        <span class="gbr-drum">@digit</span>
+                    }
+                    <span class="gbr-drum-unit">@unit</span>
+                </div>
+            </div>
+            <div class="gbr-stat">
+                <div class="gbr-label">@T(vehicle.UseHours ? "Hours logged" : "Distance logged")</div>
+                <div class="gbr-value">@Model.DistanceTraveledValue.ToString("N0") @unit</div>
+                @if (Model.FirstRecordDate.HasValue)
                 {
-                    <br />
-                    <span class="lead ms-2">
-                        @($"{@translator.Translate(userLanguage, "From")} {Model.StartDate} {@translator.Translate(userLanguage, "To")} {Model.EndDate}")
-                    </span>
+                    <div class="gbr-sub">@T("since") @Model.FirstRecordDate.Value.ToString("MMM yyyy", CultureInfo.CurrentCulture)</div>
                 }
             </div>
+            @if (!string.IsNullOrWhiteSpace(Model.FuelEconomy))
+            {
+                <div class="gbr-stat">
+                    <div class="gbr-label">@T("Fuel economy")</div>
+                    <div class="gbr-value">@Model.FuelEconomy @Model.FuelEconomyUnit</div>
+                    <div class="gbr-sub">@T("average for the period")</div>
+                </div>
+            }
+            @if (showCosts && Model.DistanceTraveledValue > 0)
+            {
+                <div class="gbr-stat">
+                    <div class="gbr-label">@T(vehicle.UseHours ? "Cost per hour" : unit == "km" ? "Cost per km" : "Cost per mile")</div>
+                    <div class="gbr-value">@money(totalOwnership / Model.DistanceTraveledValue)</div>
+                    <div class="gbr-sub">@T("fuel and upkeep")</div>
+                </div>
+            }
         </div>
-    </div>
-    <hr />
-    <div class="row">
-        <div class="col-6">
-            <ul class="list-group">
-                <li class="list-group-item">
-                    <span class="display-6">@($"{Model.VehicleData.Year} {Model.VehicleData.Make} {Model.VehicleData.Model}")</span>
-                </li>
-                @if (!string.IsNullOrWhiteSpace(Model.VehicleData.LicensePlate))
+
+        @if (Model.DueItems.Any())
+        {
+            <section class="gbr-block">
+                <h2>@T("Coming up")</h2>
+                @foreach (DueItem item in Model.DueItems)
                 {
-                    <li class="list-group-item">
-                        <span class="lead">@Model.VehicleData.LicensePlate</span>
-                    </li>
-                }
-                @foreach(ExtraField extraField in Model.VehicleData.ExtraFields)
-                {
-                    if (!string.IsNullOrWhiteSpace(extraField.Value))
-                    {
-                        <li class="list-group-item">
-                            <span class="lead">@($"{extraField.Name}: {extraField.Value}")</span>
-                        </li>
-                    }
-                }
-                <li class="list-group-item">
-                    <div class="row">
-                        <div class="col-4">
-                            @if (Model.VehicleData.IsElectric)
-                            {
-                                <span><i class="bi bi-ev-station me-2"></i>@translator.Translate(userLanguage, "Electric")</span>
-                            }
-                            else if (Model.VehicleData.IsDiesel)
-                            {
-                                <span><i class="bi bi-fuel-pump-diesel me-2"></i>@translator.Translate(userLanguage, "Diesel")</span>
-                            }
-                            else
-                            {
-                                <span><i class="bi bi-fuel-pump me-2"></i>@translator.Translate(userLanguage, "Gasoline")</span>
-                            }
+                    var target = GloveboxFormat.DueTarget(item, unit);
+                    var pace = item.HasOdometer && !item.HasDate && item.EstimatedDays.HasValue && item.Urgency != ReminderUrgency.PastDue && item.EstimatedDays.Value > 0
+                        ? $", about {GloveboxFormat.InDays(item.EstimatedDays.Value).Replace("in ", "")} at current pace" : "";
+                    <div class="gbr-due">
+                        <span class="gbr-pill gbr-pill--@GloveboxFormat.StatusClass(item)">@T(GloveboxFormat.StatusLabel(item))</span>
+                        <div class="gbr-due-main">
+                            <div class="gbr-due-name">@item.Description</div>
+                            <div class="gbr-sub">@(item.IsRecurring ? T("Recurring reminder") : T("One-time reminder"))</div>
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(Model.DaysOwned))
+                        <div class="gbr-due-side">
+                            <div class="gbr-due-when">@GloveboxFormat.DueHeadline(item, unit)</div>
+                            <div class="gbr-sub">@(string.IsNullOrWhiteSpace(target) ? "" : char.ToUpper(target[0]) + target.Substring(1))@pace</div>
+                        </div>
+                    </div>
+                }
+            </section>
+        }
+
+        @if (showCosts && Model.CategoryTotals.Any())
+        {
+            <section class="gbr-block gbr-columns">
+                <div>
+                    <h2>@T("Where the money went")</h2>
+                    <div class="gbr-bars">
+                        @foreach (var category in Model.CategoryTotals)
                         {
-                            <div class="col-4">
-                                <span><i class="bi bi-calendar-range me-2"></i>@($"{Model.DaysOwned} {translator.Translate(userLanguage, "Days")}")</span>
-                            </div>
-                        }
-                        @if (Model.DistanceTraveled != default)
-                        {
-                            <div class="col-4">
-                                <span><i class="bi bi-speedometer me-2"></i>@($"{Model.DistanceTraveled} {Model.DistanceUnit}")</span>
+                            <div class="gbr-bar-row">
+                                <span class="gbr-bar-label">@T(category.Label)</span>
+                                <span class="gbr-bar"><span class="gbr-bar-fill gbr-fill--@category.Label.ToLower()" style="width:@pct(maxCategory > 0 ? Math.Round(category.Cost / maxCategory * 100, 1) : 0)"></span></span>
+                                <span class="gbr-bar-amount">@money(category.Cost)</span>
                             </div>
                         }
                     </div>
-                </li>
-            </ul>
-        </div>
-        <div class="col-6">
-            <ul class="list-group">
-                <li class="list-group-item">@($"{translator.Translate(userLanguage, "Last Reported Odometer Reading")}: {Model.Odometer}") </li>
-                <li class="list-group-item">@($"{translator.Translate(userLanguage, "Average Fuel Economy")}: {Model.MPG}") </li>
-                <li class="list-group-item">@($"{translator.Translate(userLanguage, "Total Spent(excl. fuel)")}: {Model.TotalCost.ToString("C")} ({Model.TotalCostPerMile.ToString("C")}/{Model.DistanceUnit})") </li>
-                <li class="list-group-item">@($"{translator.Translate(userLanguage, "Total Spent on Fuel")}: {Model.TotalGasCost.ToString("C")} ({Model.TotalGasCostPerMile.ToString("C")}/{Model.DistanceUnit})") </li>
-            </ul>
-        </div>
-    </div>
-    <hr />
-    @if (Model.TotalDepreciation != default)
-    {
-        <div class="row">
-            <div class="col-3">
-                @(Model.TotalDepreciation > 0 ? translator.Translate(userLanguage, "Depreciation") : translator.Translate(userLanguage, "Appreciation"))
-            </div>
-            <div class="col-3">
-                <span><i class="bi @(Model.TotalDepreciation > 0 ? "bi-graph-down-arrow" : "bi-graph-up-arrow") me-2"></i>@Math.Abs(Model.TotalDepreciation).ToString("C")</span>
-            </div>
-            @if (Model.DepreciationPerDay != default)
-            {
-                <div class="col-3">
-                    <span><i class="bi bi-calendar-event me-2"></i>@($"{Model.DepreciationPerDay.ToString("C")}/{translator.Translate(userLanguage, "day")}")</span>
-                </div>
-            }
-            @if (Model.DepreciationPerMile != default)
-            {
-                <div class="col-3">
-                    <span><i class="bi bi-speedometer me-2"></i>@($"{Model.DepreciationPerMile.ToString("C")}/{Model.DistanceUnit}")</span>
-                </div>
-            }
-        </div>
-        <hr />
-    }
-    <div class="row">
-        <div class="col-12">
-            <table class="table table-hover">
-                <thead>
-                    <tr class="d-flex">
-                        <th scope="col" class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.DataType)) ? "" : "d-none")">@translator.Translate(userLanguage, "Type")</th>
-                        <th scope="col" class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Date)) ? "" : "d-none")">@translator.Translate(userLanguage, "Date")</th>
-                        <th scope="col" class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Odometer)) ? "" : "d-none")">@translator.Translate(userLanguage, "Odometer")</th>
-                        <th scope="col" class="col-4 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Description)) ? "" : "d-none")">@translator.Translate(userLanguage, "Description")</th>
-                        <th scope="col" class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Cost)) ? "" : "d-none")">@translator.Translate(userLanguage, "Cost")</th>
-                        <th scope="col" class="col-4 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Notes)) ? "" : "d-none")">@translator.Translate(userLanguage, "Notes")</th>
-                        @foreach(string extraField in extraFields)
+                    <div class="gbr-totals">
+                        <span>@T("Maintenance") (@recordCount @(recordCount == 1 ? T("record") : T("records")))</span><span>@money(Model.TotalCost)</span><span>@(Model.DistanceTraveledValue > 0 ? $"{money(Model.TotalCostPerMile)}/{unit}" : "")</span>
+                        @if (Model.TotalGasCost != default)
                         {
-                            <th scope="col" class="col-2 text-truncate flex-grow-1 flex-shrink-1">@extraField</th>
+                            <span>@T("Fuel")</span><span>@money(Model.TotalGasCost)</span><span>@(Model.DistanceTraveledValue > 0 ? $"{money(Model.TotalGasCostPerMile)}/{unit}" : "")</span>
                         }
+                        <strong>@T("Total cost of ownership")</strong><strong>@money(totalOwnership)</strong><strong>@(Model.DistanceTraveledValue > 0 ? $"{money(totalOwnership / Model.DistanceTraveledValue)}/{unit}" : "")</strong>
+                    </div>
+                </div>
+                <div>
+                    <h2>@T("Maintenance spending by year")</h2>
+                    <div class="gbr-bars">
+                        @foreach (var year in Model.YearTotals)
+                        {
+                            <div class="gbr-bar-row gbr-bar-row--year">
+                                <span class="gbr-bar-label">@year.Label</span>
+                                <span class="gbr-bar"><span class="gbr-bar-fill" style="width:@pct(maxYear > 0 ? Math.Round(year.Cost / maxYear * 100, 1) : 0)"></span></span>
+                                <span class="gbr-bar-amount">@money(year.Cost)</span>
+                                <span class="gbr-bar-count">@GloveboxFormat.Count(year.Count, T("record"), T("records"))</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+        }
+
+        @if (Model.LastDone.Any())
+        {
+            <section class="gbr-block">
+                <h2>@T("Last done")</h2>
+                <div class="gbr-lastdone">
+                    @foreach (var item in Model.LastDone)
+                    {
+                        <div class="gbr-lastdone-item">
+                            <div>
+                                <div class="gbr-lastdone-name">@item.Description</div>
+                                <div class="gbr-sub">@longDate(item.Date)@(item.Odometer > 0 ? $" {T("at")} {GloveboxFormat.Distance(item.Odometer, unit)}" : "")</div>
+                            </div>
+                            <div class="gbr-lastdone-since">@item.Since</div>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </section>
+
+    <section class="gbr-history">
+        <header class="gbr-history-head">
+            <h2>@T("Service history")</h2>
+            <span>@vehicleName@(string.IsNullOrWhiteSpace(vehicle.LicensePlate) ? "" : $", {T("plate")} {vehicle.LicensePlate}")</span>
+        </header>
+        @if (!Model.VehicleHistory.Any())
+        {
+            <p class="gbr-empty">@T("No records in this period.")</p>
+        }
+        else
+        {
+            <table class="gbr-table">
+                <thead>
+                    <tr>
+                        @if (showDate) { <th class="gbr-col-date">@T("Date")</th> }
+                        @if (showOdometer) { <th class="gbr-col-odo">@T("Odometer")</th> }
+                        @if (showType) { <th class="gbr-col-type">@T("Type")</th> }
+                        @if (showDescription) { <th class="gbr-col-desc">@T("Work performed")</th> }
+                        @if (showNotes) { <th class="gbr-col-notes">@T("Parts and notes")</th> }
+                        @foreach (string extraField in extraFields) { <th class="gbr-col-extra">@extraField</th> }
+                        @if (showCostColumn) { <th class="gbr-col-cost">@T("Cost")</th> }
                     </tr>
                 </thead>
-                <tbody>
-                    @foreach (GenericReportModel reportData in Model.VehicleHistory)
-                    {
-                        <tr class="d-flex">
-                            <td class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.DataType)) ? "" : "d-none")">
-                                @if (reportData.DataType == ImportMode.ServiceRecord)
-                                {
-                                    <span><i class="bi bi-card-checklist me-2"></i>@translator.Translate(userLanguage, "Service")</span>
-                                }
-                                else if (reportData.DataType == ImportMode.RepairRecord)
-                                {
-                                    <span><i class="bi bi-exclamation-octagon me-2"></i>@translator.Translate(userLanguage, "Repair")</span>
-                                }
-                                else if (reportData.DataType == ImportMode.UpgradeRecord)
-                                {
-                                    <span><i class="bi bi-wrench-adjustable me-2"></i>@translator.Translate(userLanguage, "Upgrade")</span>
-                                }
-                                else if (reportData.DataType == ImportMode.TaxRecord)
-                                {
-                                    <span><i class="bi bi-currency-dollar me-2"></i>@translator.Translate(userLanguage, "Tax")</span>
-                                }
-                            </td>
-                            <td class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Date)) ? "" : "d-none")">@reportData.Date.ToShortDateString()</td>
-                            <td class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Odometer)) ? "" : "d-none")">@(reportData.Odometer == default ? "---" : reportData.Odometer.ToString("N0"))</td>
-                            <td class="col-4 text-truncate flex-grow-1 flex-shrink-1 text-wrap break-all @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Description)) ? "" : "d-none")">@StaticHelper.TruncateStrings(reportData.Description, 100)</td>
-                            <td class="col-2 text-truncate flex-grow-1 flex-shrink-1 @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Cost)) ? "" : "d-none")">@(StaticHelper.HideZeroCost(reportData.Cost, hideZero))</td>
-                            <td class="col-4 flex-grow-1 flex-shrink-1 text-wrap break-all @(Model.ReportParameters.VisibleColumns.Contains(nameof(GenericReportModel.Notes)) ? "" : "d-none")">@StaticHelper.TruncateStrings(reportData.Notes, 100)</td>
-                            @foreach(string extraField in extraFields)
-                            {
-                                <td class="col-2 text-truncate flex-grow-1 flex-shrink-1">@(reportData.ExtraFields.Where(x => x.Name == extraField)?.FirstOrDefault()?.Value ?? "")</td>
-                            }
+                @foreach (var yearGroup in Model.VehicleHistory.GroupBy(x => x.Date.Year))
+                {
+                    var yearCount = yearGroup.Count();
+                    var yearCost = yearGroup.Sum(x => x.Cost);
+                    <tbody>
+                        <tr class="gbr-year">
+                            <th colspan="@columnCount" scope="rowgroup">
+                                <span class="gbr-year-label">@yearGroup.Key</span>
+                                <span class="gbr-year-meta">@GloveboxFormat.Count(yearCount, T("record"), T("records"))@(showCosts ? $", {money(yearCost)}" : "")</span>
+                            </th>
                         </tr>
-                    }
-                </tbody>
-                <tfoot>
-                    <tr class="d-flex">
-                        <td class="col-12 showOnPrint lubelogger-report-banner">
-                            @StaticHelper.ReportNote
-                        </td>
-                    </tr>
-                </tfoot>
+                        @foreach (GenericReportModel record in yearGroup)
+                        {
+                            var typeName = GloveboxFormat.RecordTypeName(record.DataType);
+                            <tr class="gbr-row">
+                                @if (showDate) { <td class="gbr-col-date">@record.Date.ToString(monthDayPattern, CultureInfo.CurrentCulture)</td> }
+                                @if (showOdometer) { <td class="gbr-col-odo">@(record.Odometer == default ? "" : record.Odometer.ToString("N0"))</td> }
+                                @if (showType) { <td class="gbr-col-type"><span class="gbr-tag gbr-tag--@typeName.ToLower()">@T(typeName)</span></td> }
+                                @if (showDescription) { <td class="gbr-col-desc">@record.Description</td> }
+                                @if (showNotes) { <td class="gbr-col-notes">@GloveboxFormat.MarkdownExcerpt(record.Notes, 320)</td> }
+                                @foreach (string extraField in extraFields)
+                                {
+                                    <td class="gbr-col-extra">@(record.ExtraFields.FirstOrDefault(x => x.Name == extraField)?.Value ?? "")</td>
+                                }
+                                @if (showCostColumn) { <td class="gbr-col-cost">@StaticHelper.HideZeroCost(record.Cost, hideZero)</td> }
+                            </tr>
+                        }
+                    </tbody>
+                }
             </table>
-        </div>
-    </div>
+            <p class="gbr-end">
+                <strong>@T("End of report.")</strong>
+                @recordCount @(recordCount == 1 ? T("record") : T("records")) @T("from") @period@(Model.DistanceTraveledValue > 0 ? $", {T("covering")} {GloveboxFormat.Distance(Model.DistanceTraveledValue, unit)}" : "").
+                @if (showCosts)
+                {
+                    @($"{T("Maintenance spending totals")} {money(Model.TotalCost)}.")
+                    @if (Model.TotalGasCost != default)
+                    {
+                        @($" {T("Fuel")} ({money(Model.TotalGasCost)}) {T("is counted in the page 1 totals.")}")
+                    }
+                }
+            </p>
+        }
+    </section>
 </div>
 @if (Model.ReportParameters.PrintIndividualRecords){
     @foreach (GenericReportModel genericRecord in Model.VehicleHistory)

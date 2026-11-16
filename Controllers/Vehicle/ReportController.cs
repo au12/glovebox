@@ -680,7 +680,87 @@ namespace CarCareTracker.Controllers
                 ExtraFields = x.ExtraFields
             }));
             vehicleHistory.VehicleHistory = reportData.OrderBy(x => x.Date).ThenBy(x => x.Odometer).ToList();
+            AddGloveboxReportSummary(vehicleHistory, vehicleId, vehicleRecords, gasViewModels, maxMileage, distanceTraveled, averageMPG, fuelEconomyMileageUnit);
             return PartialView("Report/_VehicleHistory", vehicleHistory);
+        }
+        /// <summary>
+        /// Summary figures for the Glovebox maintenance report: what's coming up, what was done last,
+        /// and where the money went by type and by year.
+        /// </summary>
+        private void AddGloveboxReportSummary(VehicleHistoryViewModel model, int vehicleId, VehicleRecords filteredRecords, List<GasRecordViewModel> gasViewModels, int maxMileage, int distanceTraveled, string averageMPG, string fuelEconomyUnit)
+        {
+            var userConfig = _config.GetUserConfig(User);
+            var now = DateTime.Now;
+            model.GeneratedOn = now;
+            model.ShowCosts = !userConfig.HideCostTracking;
+            model.UnitLabel = _gloveboxHelper.GetDistanceUnit(model.VehicleData, userConfig);
+            model.MaxOdometer = maxMileage;
+            model.DistanceTraveledValue = distanceTraveled;
+            var history = model.VehicleHistory;
+            if (history.Any())
+            {
+                model.FirstRecordDate = history.Min(x => x.Date);
+                model.LastRecordDate = history.Max(x => x.Date);
+            }
+            if (gasViewModels.Any() && decimal.TryParse(averageMPG, NumberStyles.Any, CultureInfo.CurrentCulture, out decimal parsedEconomy) && parsedEconomy != 0)
+            {
+                model.FuelEconomy = parsedEconomy.ToString("N1");
+                model.FuelEconomyUnit = fuelEconomyUnit;
+            }
+            //reminders reflect the vehicle as it is today, not the filtered period.
+            GetAndUpdateVehicleUrgentOrPastDueReminders(vehicleId);
+            var allRecords = _vehicleLogic.GetVehicleRecords(vehicleId);
+            var latestOdometer = _gloveboxHelper.GetLatestOdometer(allRecords);
+            var averageDaily = _gloveboxHelper.GetAverageDailyDistance(allRecords);
+            var reminders = _reminderRecordDataAccess.GetReminderRecordsByVehicleId(vehicleId);
+            model.DueItems = _gloveboxHelper.GetDueItems(reminders, latestOdometer.Mileage, averageDaily, userConfig.Ntfy, now).Take(6).ToList();
+            //most recent service per item
+            model.LastDone = history
+                .Where(x => x.DataType == ImportMode.ServiceRecord && !string.IsNullOrWhiteSpace(x.Description))
+                .GroupBy(x => x.Description.Trim().ToLowerInvariant())
+                .Select(x => x.OrderByDescending(y => y.Date).ThenByDescending(y => y.Odometer).First())
+                .OrderByDescending(x => x.Date)
+                .Take(8)
+                .Select(x =>
+                {
+                    string since;
+                    var milesAgo = maxMileage - x.Odometer;
+                    if (x.Date.Date == now.Date)
+                    {
+                        since = "Today";
+                    }
+                    else if (x.Odometer > 0 && milesAgo > 0)
+                    {
+                        since = $"{GloveboxFormat.Distance(milesAgo, model.UnitLabel)} ago";
+                    }
+                    else
+                    {
+                        since = $"{GloveboxFormat.Span((now.Date - x.Date.Date).Days)} ago";
+                    }
+                    return new ReportLastDoneItem { Description = x.Description.Trim(), Date = x.Date, Odometer = x.Odometer, Since = since };
+                }).ToList();
+            //spending by type, largest first
+            model.CategoryTotals = history
+                .GroupBy(x => x.DataType)
+                .Select(x => new ReportCostTotal { DataType = x.Key, Label = GloveboxFormat.RecordTypeName(x.Key), Count = x.Count(), Cost = x.Sum(y => y.Cost) })
+                .OrderByDescending(x => x.Cost)
+                .ToList();
+            //spending by year, including quiet years so gaps are visible
+            if (history.Any())
+            {
+                var byYear = history.GroupBy(x => x.Date.Year).ToDictionary(x => x.Key, x => x.ToList());
+                var firstYear = byYear.Keys.Min();
+                var lastYear = byYear.Keys.Max();
+                if (lastYear - firstYear > 11)
+                {
+                    firstYear = lastYear - 11;
+                }
+                for (int year = firstYear; year <= lastYear; year++)
+                {
+                    var records = byYear.ContainsKey(year) ? byYear[year] : new List<GenericReportModel>();
+                    model.YearTotals.Add(new ReportCostTotal { Year = year, Label = year.ToString(), Count = records.Count, Cost = records.Sum(x => x.Cost) });
+                }
+            }
         }
         [TypeFilter(typeof(CollaboratorFilter))]
         [HttpPost]

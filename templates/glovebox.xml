@@ -20,8 +20,11 @@
   <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/desktop-overview-light.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/mobile-overview-dark.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/mobile-note-light.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/au12/glovebox/main/docs/screenshots/report-summary.png</Screenshot>
   <Date>2026-11-15</Date>
   <Changes>
+### 0.2.0 (2026-11-15)
+- Rebuilt maintenance report: summary page, service history grouped by year, clean printing
 ### 0.1.0 (2026-11-15)
 - First release: redesigned garage, vehicle overview and mobile layout
 - Rendered markdown notes and in-app attachment viewer

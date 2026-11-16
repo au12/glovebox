@@ -19,6 +19,13 @@
 
 ![Vehicle overview, light mode](docs/screenshots/desktop-overview-light.png)
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/report-summary.png" alt="Maintenance report, summary page"></td>
+    <td width="50%"><img src="docs/screenshots/report-history.png" alt="Maintenance report, service history page"></td>
+  </tr>
+</table>
+
 ## What's different from LubeLogger
 
 Glovebox runs on the same code base and reads and writes exactly the same data, so an existing LubeLogger install can switch to it (and back) without migrating anything.
@@ -30,6 +37,7 @@ Glovebox runs on the same code base and reads and writes exactly the same data, 
 - **Attachments open in the app.** Images, PDFs (rendered in the page, with zoom), video, audio, text, CSV and markdown open in a full-screen viewer with swipe and arrow-key navigation. Downloading is still there.
 - **Push notifications with ntfy.** Get a notification when a reminder is coming up, due soon, urgent or overdue, with quiet hours and optional repeats for overdue items.
 - **Heads-up before it's due.** Set a default early warning (for example 500 miles or 14 days) and override it per reminder, so you have time to order parts before the due date arrives.
+- **A maintenance report worth handing over.** A summary page with what's coming up, where the money went and when routine items were last done, followed by the full service history grouped by year. It prints cleanly on Letter paper, in light or dark mode.
 - **Hide cost tracking.** One switch in Settings hides every cost field, column, total and chart. Amounts you've already entered are kept.
 - **Settings that make sense.** Grouped into Appearance, Vehicles, Notifications, Units, Costs, Records, Automation, Server and About, and every change saves on its own.
 - **No search.** The global search, garage search and per-table search are gone. Tag filters remain.
@@ -51,7 +59,7 @@ The image is published to GitHub Container Registry for `linux/amd64` and `linux
 ghcr.io/au12/glovebox:latest
 ```
 
-`latest` follows the `main` branch. To stay on a release, use its version instead, for example `ghcr.io/au12/glovebox:0.1.0`. Releases are listed on the [releases page](https://github.com/au12/glovebox/releases).
+`latest` follows the `main` branch. To stay on a release, use its version instead, for example `ghcr.io/au12/glovebox:0.2.0`. Releases are listed on the [releases page](https://github.com/au12/glovebox/releases).
 
 ### Switching an existing LubeLogger container on Unraid
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 (2026-11-15)
+
+A rebuilt maintenance report.
+
+```
+ghcr.io/au12/glovebox:0.2.0
+```
+
+- **Printing the maintenance report works again.** Since the redesign, printing it also printed the vehicle page around it. Now only the report prints, on white paper even in dark mode. Record stickers print cleanly too.
+- **A summary page up front:** the vehicle and its photo, the odometer, distance logged, fuel economy and cost per mile, what's coming up, where the money went by record type and by year, total cost of ownership, and when routine items were last done.
+- **A service history built for paper:** records grouped by year with counts and totals, a separate column for parts and notes that wraps instead of cutting off, color-coded record types, column headings repeated on every page, and page numbers in the footer.
+- **Hide cost tracking applies to the report.** With it on, every amount, total and cost column is left out.
+- Column choices, extra fields, tag filters, date ranges and individual record printing still work as before.
+
 ## 0.1.0 (2026-11-15)
 
 The first Glovebox release: a redesigned [LubeLogger](https://github.com/hargata/lubelog) that puts what's due next front and center. It reads and writes the same data as LubeLogger 1.7.4, so an existing install can switch images (and back) without migrating anything.

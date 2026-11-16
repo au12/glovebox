@@ -18,7 +18,7 @@ namespace CarCareTracker.Helper
         /// <summary>
         /// Glovebox release version (VersionNumber remains the upstream LubeLogger version it's based on).
         /// </summary>
-        public const string GloveboxVersion = "0.1.0";
+        public const string GloveboxVersion = "0.2.0";
         private static string? _assetVersion;
         /// <summary>
         /// Glovebox: cache-busting token for static files. VersionNumber stays the upstream

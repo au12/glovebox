@@ -807,6 +807,12 @@ function printTab() {
     }, 500);
 }
 function printContainer(htmlData) {
+    //print only the container: it has to sit directly under <body> so everything else can be hidden.
+    var printTarget = $(".stickerPrintContainer").first();
+    if (printTarget.length && !printTarget.parent().is("body")) {
+        printTarget.appendTo("body");
+    }
+    $("html").addClass("gb-printing");
     $(".vehicleDetailTabContainer").addClass("hideOnPrint");
     $(".stickerPrintContainer").addClass("showOnPrint");
     $(".stickerPrintContainer").removeClass("hideOnPrint");
@@ -818,6 +824,7 @@ function printContainer(htmlData) {
             $(".stickerPrintContainer").addClass("hideOnPrint");
             $(".vehicleDetailTabContainer").removeClass("hideOnPrint");
             $(".stickerPrintContainer").html("");
+            $("html").removeClass("gb-printing");
         }, 1000);
     }, 500);
 }
