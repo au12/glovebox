@@ -1,0 +1,75 @@
+name: Release
+
+# Publishes a GitHub release (and its tag) whenever the version in Helper/StaticHelper.cs
+# changes on main and that version has no release yet. Release notes come from the matching
+# "## <version>" section of CHANGELOG.md. The versioned image is then built and pushed.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Helper/StaticHelper.cs"
+      - "CHANGELOG.md"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      created: ${{ steps.publish.outputs.created }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(grep -oP 'GloveboxVersion = "\K[^"]+' Helper/StaticHelper.cs)
+          if [ -z "$version" ]; then echo "::error::GloveboxVersion not found in Helper/StaticHelper.cs"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version in source: $version"
+
+      - name: Publish release if it doesn't exist
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $tag already exists, nothing to do."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          awk -v v="$VERSION" '
+            /^## [0-9]/ { if (found) exit; if ($2 == v) { found = 1; next } }
+            found
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no '## $VERSION' section. Add release notes before bumping the version."
+            exit 1
+          fi
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$tag" --notes-file release-notes.md --latest
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "Published $tag at $GITHUB_SHA"
+
+  # Tags created with the workflow token don't trigger other workflows, so build the
+  # versioned image here.
+  image:
+    needs: release
+    if: needs.release.outputs.created == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-and-push-image.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
