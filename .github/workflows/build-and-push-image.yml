@@ -7,13 +7,20 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Release version to tag the image with (for example 0.2.0)
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: image-${{ github.ref }}
+  group: image-${{ inputs.version || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -43,10 +50,12 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=short,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ (inputs.version || '') == '' && github.ref == 'refs/heads/main' }}
+            type=sha,format=short,enable=${{ (inputs.version || '') == '' && github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ (inputs.version || '') != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }},enable=${{ (inputs.version || '') != '' }}
             type=ref,event=pr
           labels: |
             org.opencontainers.image.title=Glovebox

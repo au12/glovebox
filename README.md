@@ -129,6 +129,10 @@ or `docker build -t glovebox .`. Every push to `main` builds and publishes `late
 
 If the package page on GitHub shows the image as private after the first build, open **Package settings** and change its visibility to public so Unraid can pull it without signing in.
 
+## Releases
+
+Releases are published automatically. When `GloveboxVersion` in `Helper/StaticHelper.cs` changes on `main` and that version has no release yet, the Release workflow creates the `v<version>` tag and release, using the matching section of `CHANGELOG.md` as the notes, then builds and pushes the `<version>` and `<major>.<minor>` images. Add the changelog section before bumping the version; the workflow fails without it.
+
 ## Credits
 
 Glovebox is a fork of [LubeLogger](https://github.com/hargata/lubelog) by Hargata Softworks. LubeLogger's [documentation](https://docs.lubelogger.com) covers everything that works the same way, which is most of it: record types, the planner, inspections, supplies, the API, OpenID, PostgreSQL and backups.
