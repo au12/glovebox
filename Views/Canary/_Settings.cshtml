@@ -1,0 +1,80 @@
+@using CarCareTracker.Canary
+@using CarCareTracker.Helper
+@model CanaryViewModel
+@{
+    var s = Model.Settings;
+}
+<div class="modal-header">
+    <h5 class="modal-title">CANary settings</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body cn cn-settings">
+    <form id="canarySettingsForm" onsubmit="return false">
+        <h3>Odometer</h3>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="cnRecordOdometer" @(s.RecordOdometer ? "checked" : "")>
+            <label class="form-check-label" for="cnRecordOdometer">Record the odometer whenever the device checks in</label>
+        </div>
+        <p class="cn-help">One record a day, moved forward as the day's readings come in, and only ever upward.</p>
+        <div class="row g-3">
+            <div class="col-sm-6">
+                <label class="form-label" for="cnOdometerUnit">This vehicle's odometer is kept in</label>
+                <select class="form-select" id="cnOdometerUnit">
+                    <!option value="mi" @(Model.OdometerUnit == "km" ? "" : "selected")>Miles</!option>
+                    <!option value="km" @(Model.OdometerUnit == "km" ? "selected" : "")>Kilometres</!option>
+                </select>
+                <div class="cn-help">Also the units of this report. Existing records are not converted.</div>
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label" for="cnOdometerOffset">Correction</label>
+                <input class="form-control" type="number" id="cnOdometerOffset" value="@s.OdometerOffset" step="1">
+                <div class="cn-help">Added to every reading. For a car whose instrument cluster was replaced.</div>
+            </div>
+        </div>
+
+        <h3>Weekly report</h3>
+        <div class="row g-3">
+            <div class="col-sm-6">
+                <label class="form-label" for="cnWeekStart">A week starts on</label>
+                <select class="form-select" id="cnWeekStart">
+                    <!option value="false" @(s.WeekStartsSunday ? "" : "selected")>Monday</!option>
+                    <!option value="true" @(s.WeekStartsSunday ? "selected" : "")>Sunday</!option>
+                </select>
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label" for="cnRetention">Keep raw data</label>
+                <select class="form-select" id="cnRetention">
+                    @foreach (var (months, label) in new[] { (0, "For good"), (24, "For two years"), (12, "For a year"), (6, "For six months"), (3, "For three months") })
+                    {
+                        <!option value="@months" @(s.RawRetentionMonths == months ? "selected" : "")>@label</!option>
+                    }
+                </select>
+                <div class="cn-help">The analysis of every drive is kept either way. Now using @CanaryFormat.Bytes(Model.RawBytes).</div>
+            </div>
+        </div>
+
+        <h3>Notifications</h3>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="cnNotify" @(s.Notify ? "checked" : "")>
+            <label class="form-check-label" for="cnNotify">Tell me when a warning, a critical finding or a stored trouble code first appears</label>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="cnDigest" @(s.WeeklyDigest ? "checked" : "")>
+            <label class="form-check-label" for="cnDigest">Send a short summary when a week has ended</label>
+        </div>
+        <p class="cn-help">Sent through ntfy, to everyone who has turned notifications on in their Glovebox settings and can see this vehicle.</p>
+    </form>
+
+    <partial name="_Connect" model="Model" />
+
+    <h3>Maintenance</h3>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="canaryReanalyze()">Analyse every drive again</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="canaryForget()">Remove all CANary data for this vehicle</button>
+    </div>
+    <p class="cn-help">Analysing again applies the newest vehicle profile to the raw data on file. Removing the data leaves the odometer records in place.</p>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button type="button" class="btn btn-primary" onclick="canarySaveSettings()">Save</button>
+</div>

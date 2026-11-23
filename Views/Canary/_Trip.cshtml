@@ -1,0 +1,121 @@
+@using CarCareTracker.Canary
+@using CarCareTracker.Helper
+@using System.Text.Json
+@model CanaryTripViewModel
+@{
+    var f = Model.Format;
+    var trip = Model.Trip;
+    double avg = trip.DurationS > 0 ? trip.DistanceKm / (trip.DurationS / 3600.0) : 0;
+    var economy = f.Economy(trip.DistanceKm, trip.FuelL);
+    var checks = trip.Checks.Select(r => (Result: r, Check: Model.Profile?.Checks.FirstOrDefault(c => c.Id == r.Id))).Where(x => x.Check != null).Select(x => (x.Result, Check: x.Check!)).ToList();
+    var bad = checks.Where(x => x.Result.Status.IsFinding()).OrderByDescending(x => x.Result.Status).ToList();
+    var ok = checks.Where(x => x.Result.Status == CanarySeverity.Ok).ToList();
+    var groups = Model.Profile?.Signals.ToDictionary(x => x.Id, x => x.Group) ?? new Dictionary<string, string>();
+    var signals = trip.Signals.Where(x => x.Value.N > 1).Select(x => new { id = x.Key, name = x.Value.Name, group = groups.GetValueOrDefault(x.Key, "") }).ToList();
+}
+<div class="modal-header">
+    <h5 class="modal-title">@(Model.TimeKnown ? Model.When.ToString("dddd, MMM d") + " at " + Model.When.ToString("t") : "Drive uploaded " + Model.When.ToString("ddd, MMM d"))</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body cn cn-tripview" id="canaryTrip" data-trip="@trip.Id">
+    <div class="cn-stats">
+        <div><b>@f.Distance(trip.DistanceKm, 1)</b>Distance</div>
+        <div><b>@CanaryFormat.DriveTime(trip.DurationS)</b>Duration</div>
+        <div><b>@f.Speed(trip.MaxSpeed)</b>Top speed</div>
+        <div><b>@f.Speed(avg)</b>Average speed</div>
+        @if (economy != null)
+        {
+            <div><b>@economy</b>@f.Volume(trip.FuelL) used</div>
+        }
+        @if (trip.IdleS >= 30)
+        {
+            <div><b>@CanaryFormat.DriveTime(trip.IdleS)</b>Idling</div>
+        }
+        @if (trip.OdoEndKm is > 0)
+        {
+            <div><b>@f.Distance(trip.OdoEndKm.Value)</b>Odometer</div>
+        }
+    </div>
+    @if (!Model.TimeKnown)
+    {
+        <p class="cn-note">The device had not yet learned the time when it recorded this drive, so only the upload day is known.</p>
+    }
+
+    @if (bad.Count > 0)
+    {
+        <h3 class="cn-group">Findings on this drive</h3>
+        <div class="cn-sheet">
+            @foreach (var (result, check) in bad)
+            {
+                <article class="cn-finding">
+                    @CanaryHtml.Lamp(result.Status)
+                    <h4>@check.Headline(result.Status, result.Low)</h4>
+                    <div class="cn-value">@f.Value(result.Value, check.Unit, check.Dec)</div>
+                    <p class="cn-say">@f.Sentence(check.Template(result.Status, result.Low), result.Value, check.Unit, check.Dec)</p>
+                    <div class="cn-more">@CanaryHtml.Gauge(f.GaugeFor(check, result.Value))</div>
+                </article>
+            }
+        </div>
+    }
+    @if (trip.Codes.Count > 0)
+    {
+        <h3 class="cn-group">Trouble codes during this drive</h3>
+        <div class="cn-sheet">
+            @foreach (var code in trip.Codes)
+            {
+                <div class="cn-code">
+                    @CanaryHtml.Lamp(code.Kind == "pending" ? CanarySeverity.Advisory : CanarySeverity.Warning)
+                    <div class="cn-code-id">@code.Code</div>
+                    <div class="cn-code-what">@Model.CodeBook.Describe(code.Code).Text<span>@Model.CodeBook.Note(code)</span></div>
+                    <span class="cn-pill cn-@(code.Kind == "pending" ? "adv" : "warn")">@(code.Kind == "pending" ? "Pending" : code.Kind == "permanent" ? "Permanent" : "Stored")</span>
+                </div>
+            }
+        </div>
+    }
+    @if (ok.Count > 0)
+    {
+        <details class="cn-fold" @(bad.Count == 0 && trip.Codes.Count == 0 ? "open" : "")>
+            <summary><i class="bi bi-chevron-right"></i>Passed <small>@ok.Count @(ok.Count == 1 ? "check" : "checks")</small></summary>
+            <div class="cn-sheet">
+                @foreach (var (result, check) in ok)
+                {
+                    <article class="cn-finding cn-compact">
+                        @CanaryHtml.Lamp(CanarySeverity.Ok)
+                        <h4>@check.Title</h4>
+                        <p class="cn-say">@f.Sentence(check.Template(result.Status, result.Low), result.Value, check.Unit, check.Dec)</p>
+                        @CanaryHtml.Gauge(f.GaugeFor(check, result.Value), true)
+                    </article>
+                }
+            </div>
+        </details>
+    }
+    else if (bad.Count == 0)
+    {
+        <p class="cn-note">@(Model.Profile == null ? "The vehicle profile for this drive has not been uploaded yet, so its checks could not be run. It arrives with the device's next check-in." : "This drive was too short for any check to reach a verdict.")</p>
+    }
+
+    <h3 class="cn-group">Recorded data</h3>
+    @if (Model.HasRaw)
+    {
+        <div class="cn-sheet">
+            <div class="cn-chips" id="cnChips"></div>
+            <div class="cn-charts" id="cnCharts"><p class="cn-note" style="padding:14px 18px;margin:0">Loading charts</p></div>
+            <div class="cn-sheet-foot">
+                <a class="btn btn-outline-secondary btn-sm" href="~/Canary/Raw?vehicleId=@Model.VehicleId&tripId=@trip.Id"><i class="bi bi-download"></i><span class="gb-btn-label">Download the raw log (@CanaryFormat.Bytes(trip.RawSize))</span></a>
+                <span class="cn-note" style="margin:0">@trip.Samples.ToString("N0") readings of @trip.Signals.Count signals, recorded by @trip.Device with firmware @trip.Fw.</span>
+            </div>
+        </div>
+        <script type="application/json" id="cnTripSignals">@Html.Raw(JsonSerializer.Serialize(signals))</script>
+    }
+    else
+    {
+        <div class="cn-sheet cn-blank"><b>The raw data of this drive is no longer kept</b>It was removed under the retention setting for this vehicle. The analysis above stays.</div>
+    }
+</div>
+<div class="modal-footer">
+    @if (Model.CanEdit)
+    {
+        <button type="button" class="btn btn-outline-danger me-auto" onclick="canaryDeleteTrip('@trip.Id')"><i class="bi bi-trash"></i><span class="gb-btn-label">Delete this drive</span></button>
+    }
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+</div>

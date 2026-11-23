@@ -126,6 +126,14 @@ if (StaticHelper.CheckConfigBoolean(builder.Configuration, "LUBELOGGER_AUTO_EVEN
 
 //configure signalr
 builder.Services.AddSingleton<IEventLogic, EventLogic>();
+
+//CANary: engine-health data uploaded by a device in the car
+var canaryStore = new CarCareTracker.Canary.CanaryStore(Path.Combine(builder.Environment.ContentRootPath, "data", "canary"));
+builder.Services.AddSingleton(canaryStore);
+builder.Services.AddSingleton(new CarCareTracker.Canary.CanaryReportBuilder(canaryStore));
+builder.Services.AddSingleton(new CarCareTracker.Canary.CanaryCodeBook(Path.Combine(builder.Environment.WebRootPath, "defaults", "canary_dtc.json")));
+builder.Services.AddSingleton<ICanaryLogic, CanaryLogic>();
+builder.Services.AddHostedService<CanaryWorker>();
 builder.Services.AddSignalR();
 
 //configure Auth

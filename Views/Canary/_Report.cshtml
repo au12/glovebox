@@ -1,0 +1,288 @@
+@using CarCareTracker.Canary
+@using CarCareTracker.Helper
+@inject IConfigHelper config
+@inject ITranslationHelper translator
+@model CanaryViewModel
+@{
+    var userLanguage = config.GetUserConfig(User).UserLanguage;
+    string T(string s) => translator.Translate(userLanguage, s);
+    var f = Model.Format;
+    var week = Model.Week;
+    var device = Model.Device;
+    bool connected = device != null || Model.TripCount > 0;
+    var now = Model.Clock.Now;
+    string weekLabel = week.Start.Month == week.End.Month
+        ? $"{week.Start:MMM d} – {week.End:%d}, {week.End:yyyy}"
+        : $"{week.Start:MMM d} – {week.End:MMM d}, {week.End:yyyy}";
+    string Day(DateTime d) => d.Date == now.Date ? "today" : d.Date == now.Date.AddDays(-1) ? "yesterday" : $"on {d:ddd, MMM d}";
+    string Drives(int n) => n == 1 ? "1 drive" : $"{n} drives";
+    var findings = week.Findings.ToList();
+    var passed = week.Passed.ToList();
+    var waiting = week.Waiting.ToList();
+    var unavailable = week.Unavailable.ToList();
+    var muted = week.MutedFindings.ToList();
+    int assessed = findings.Count + passed.Count;
+    string span = week.Current ? "so far this week" : "this week";
+    /* a check that only some drives could judge says so, or "all 11 drives" reads oddly in a week of 16 */
+    string Where(int judged) => judged < week.Stats.Drives ? "where this could be checked" : span;
+    string heroClass = week.Stats.Drives == 0 ? "wait" : CanaryFormat.SeverityClass(week.Worst);
+}
+<div class="cn" id="canaryRoot" data-vehicle="@Model.Vehicle.Id" data-week="@week.Start.ToString("yyyy-MM-dd")">
+@if (!connected)
+{
+    <section class="cn-intro">
+        <img class="cn-mark" src="~/defaults/canary_mark.svg?v=@StaticHelper.AssetVersion" alt="" />
+        <div>
+            <h2>@T("Connect a CANary")</h2>
+            <p>CANary is a small device that stays plugged into the car's diagnostic port. It checks the engine's health on every drive and uploads what it recorded whenever the car comes home. Glovebox keeps the odometer up to date and turns the drives into a weekly report on this page.</p>
+        </div>
+    </section>
+    <partial name="_Connect" model="Model" />
+    <p class="cn-note">The first check-in shows up here within a minute of saving on the device. CANary is open source: <a href="https://github.com/au12/CANary" target="_blank" rel="noopener">github.com/au12/CANary</a>.</p>
+}
+else
+{
+    <div class="cn-bar hideOnPrint">
+        <div class="cn-device">
+            @if (device != null)
+            {
+                var seen = Model.Clock.Local(device.SeenAt);
+                bool quiet = (now - seen).TotalDays > 7;
+                <span class="@(quiet ? "cn-quiet" : "")"><i class="bi bi-broadcast-pin"></i>@(string.IsNullOrWhiteSpace(device.Name) ? "CANary" : device.Name) checked in @Day(seen) at @seen.ToString("t")@(quiet ? ". Is it still plugged in?" : "")</span>
+                @if (device.LastOdometerRecorded > 0 && Model.Settings.RecordOdometer)
+                {
+                    <span><i class="bi bi-speedometer"></i>Odometer @device.LastOdometerRecorded.ToString("N0") @Model.OdometerUnit recorded @Day(Model.Clock.Local(device.LastOdometerRecordedAt))</span>
+                }
+                @if (device.PendingTrips > 0)
+                {
+                    <span><i class="bi bi-cloud-arrow-up"></i>@Drives(device.PendingTrips) still to upload</span>
+                }
+            }
+            else
+            {
+                <span><i class="bi bi-broadcast-pin"></i>No device has checked in for this vehicle yet</span>
+            }
+        </div>
+        <div class="cn-actions">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="printTab()"><i class="bi bi-printer"></i><span class="gb-btn-label">@T("Print")</span></button>
+            @if (Model.CanEdit)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="canarySettings()"><i class="bi bi-gear"></i><span class="gb-btn-label">@T("Settings")</span></button>
+            }
+        </div>
+    </div>
+
+    <div class="cn-weeknav">
+        <button type="button" class="cn-step hideOnPrint" @(week.Previous == null ? "disabled" : "") onclick="canaryLoad('@(week.Previous?.ToString("yyyy-MM-dd"))')" aria-label="Earlier week"><i class="bi bi-chevron-left"></i></button>
+        <div>
+            <h2>@weekLabel</h2>
+            <span>@(week.Current ? "This week so far" : "Weekly report") for the @Model.Vehicle.Year @Model.Vehicle.Make @Model.Vehicle.Model</span>
+            <span class="cn-print-only">@(device != null && device.LastOdometerRecorded > 0 ? $"Odometer {device.LastOdometerRecorded:N0} {Model.OdometerUnit}. " : "")Recorded by CANary, printed from Glovebox on @now.ToString("MMM d, yyyy").</span>
+        </div>
+        <button type="button" class="cn-step hideOnPrint" @(week.Next == null ? "disabled" : "") onclick="canaryLoad('@(week.Next?.ToString("yyyy-MM-dd"))')" aria-label="Later week"><i class="bi bi-chevron-right"></i></button>
+    </div>
+
+    <section class="cn-verdict cn-v-@heroClass">
+        @CanaryHtml.Lamp(week.Stats.Drives == 0 ? CanarySeverity.NoData : week.Worst, "cn-lamp-xl")
+        <h3>@week.Headline</h3>
+        <p>@week.Summary</p>
+        @if (week.Stats.Drives > 0)
+        {
+            var economy = f.Economy(week.Stats.DistanceKm, week.Stats.FuelL);
+            <div class="cn-facts">
+                <div><b>@week.Stats.Drives</b>@(week.Stats.Drives == 1 ? "Drive" : "Drives") on @week.Stats.DaysDriven @(week.Stats.DaysDriven == 1 ? "day" : "days")</div>
+                <div><b>@f.Distance(week.Stats.DistanceKm)</b>Driven</div>
+                <div><b>@CanaryFormat.DriveTime(week.Stats.DurationS)</b>Engine running</div>
+                @if (economy != null)
+                {
+                    <div><b>@economy</b>@f.Volume(week.Stats.FuelL) used</div>
+                }
+                <div><b>@(assessed > 0 ? $"{passed.Count} of {assessed}" : "None")</b>Checks passed</div>
+            </div>
+        }
+    </section>
+
+    @if (week.Changed.Any())
+    {
+        <ul class="cn-changes" aria-label="Changes since the last report">
+            @foreach (var c in week.Changed.OrderByDescending(x => x.Status))
+            {
+                string word = c.Change switch { "new" => "New", "worse" => "Worse", "better" => "Improved", _ => "Cleared" };
+                <li class="cn-ch-@c.Change"><b>@word</b>@(c.Change == "cleared" ? c.Check.Headline(c.PreviousStatus ?? CanarySeverity.Advisory, false) : c.Headline)</li>
+            }
+        </ul>
+    }
+
+    @if (findings.Count > 0)
+    {
+        <h3 class="cn-group">@T("Needs attention")</h3>
+        <div class="cn-sheet">
+            @foreach (var c in findings)
+            {
+                var trend = f.TrendFor(c);
+                <article class="cn-finding">
+                    @CanaryHtml.Lamp(c.Status)
+                    <h4>@c.Headline @if (c.Change == "new") {<span class="cn-tag">New</span>} else if (c.Change == "worse") {<span class="cn-tag cn-tag-worse">Worse</span>}</h4>
+                    <div class="cn-value">@f.Value(c.Value, c.Check.Unit, c.Check.Dec)</div>
+                    <p class="cn-say">@f.Sentence(c)</p>
+                    <div class="cn-more">
+                        <div class="cn-evidence">
+                            @CanaryHtml.Gauge(f.GaugeFor(c.Check, c.Value))
+                            @if (trend != null)
+                            {
+                                <div class="cn-trendbox">@CanaryHtml.Trend(trend)<span>@(trend.Words.Length > 0 ? trend.Words : "Week by week")</span></div>
+                            }
+                        </div>
+                        <p class="cn-basis">
+                            @if (c.Check.PerTrip)
+                            {
+                                <text>The worst of @Drives(c.Drives) @Where(c.Drives). @(c.DrivesFlagged == c.Drives ? "All of them" : $"{c.DrivesFlagged} of them") went over the limit.</text>
+                            }
+                            else if (c.Drives > 0)
+                            {
+                                <text>Over the limit on @(c.DrivesFlagged == c.Drives ? (c.Drives == 1 ? "the one drive" : $"all {c.Drives} drives") : $"{c.DrivesFlagged} of {c.Drives} drives") @Where(c.Drives).</text>
+                            }
+                            else
+                            {
+                                <text>From @CanaryFormat.Duration(c.SeenS) of @(c.Check.Needs ?? "the right conditions") across @Drives(c.DrivesSeen); no single drive had enough to judge alone.</text>
+                            }
+                        </p>
+                        <details class="cn-why">
+                            <summary><i class="bi bi-chevron-right"></i>What it means and common causes</summary>
+                            @if (!string.IsNullOrEmpty(c.Check.Detail(c.Low)))
+                            {
+                                <p>@c.Check.Detail(c.Low)</p>
+                            }
+                            @if (c.Check.Causes(c.Low).Count > 0)
+                            {
+                                <div class="cn-causes-title">Common causes</div>
+                                <ul class="cn-causes">
+                                    @foreach (var cause in c.Check.Causes(c.Low))
+                                    {
+                                        <li>@cause</li>
+                                    }
+                                </ul>
+                            }
+                            @if (Model.CanEdit)
+                            {
+                                <button type="button" class="btn btn-link btn-sm cn-mute hideOnPrint" onclick="canaryMute('@c.Check.Id', true)">Stop reporting this check for this car</button>
+                            }
+                        </details>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+
+    @if (week.Codes.Count > 0)
+    {
+        <h3 class="cn-group">@T("Trouble codes") <small>seen on the car's control units @span</small></h3>
+        <div class="cn-sheet">
+            @foreach (var code in week.Codes)
+            {
+                var meaning = Model.CodeBook.Describe(code.Code.Code);
+                <div class="cn-code">
+                    @CanaryHtml.Lamp(code.Severity)
+                    <div class="cn-code-id">@code.Code.Code</div>
+                    <div class="cn-code-what">@meaning.Text @if (code.New) {<span class="cn-tag">New</span>}<span>@Model.CodeBook.Note(code.Code) Present on @Drives(code.Drives), last @Day(code.Last).</span></div>
+                    <span class="cn-pill cn-@(code.Code.Kind == "pending" ? "adv" : "warn")">@(code.Code.Kind == "pending" ? "Pending" : code.Code.Kind == "permanent" ? "Permanent" : "Stored")</span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (passed.Count > 0)
+    {
+        <h3 class="cn-group">@T("Passed") <small>@passed.Count @(passed.Count == 1 ? "check" : "checks") @span</small></h3>
+        <div class="cn-sheet">
+            @foreach (var c in passed)
+            {
+                <article class="cn-finding cn-compact">
+                    @CanaryHtml.Lamp(CanarySeverity.Ok)
+                    <h4>@c.Check.Title @if (c.Change == "cleared") {<span class="cn-tag cn-tag-good">Cleared</span>}</h4>
+                    <p class="cn-say">@f.Sentence(c)</p>
+                    @CanaryHtml.Gauge(f.GaugeFor(c.Check, c.Value), true)
+                    @CanaryHtml.Trend(f.TrendFor(c, 84, 26))
+                </article>
+            }
+        </div>
+    }
+
+    @if (waiting.Count > 0)
+    {
+        <details class="cn-fold">
+            <summary><i class="bi bi-chevron-right"></i>Needs more driving <small>@waiting.Count @(waiting.Count == 1 ? "check" : "checks")</small></summary>
+            <div class="cn-sheet">
+                @foreach (var c in waiting)
+                {
+                    <article class="cn-finding cn-compact cn-wide">
+                        @CanaryHtml.Lamp(CanarySeverity.NoData)
+                        <h4>@c.Check.Title</h4>
+                        <p class="cn-say">Needs @CanaryFormat.Duration(c.Check.MinTimeS) of @(c.Check.Needs ?? "the right driving conditions"). @(c.SeenS > 0 ? $"{CanaryFormat.Duration(c.SeenS)} {span}." : $"None {span}.")</p>
+                    </article>
+                }
+            </div>
+        </details>
+    }
+    @if (unavailable.Count > 0)
+    {
+        <details class="cn-fold">
+            <summary><i class="bi bi-chevron-right"></i>Not available on this car <small>@unavailable.Count @(unavailable.Count == 1 ? "check" : "checks")</small></summary>
+            <div class="cn-sheet">
+                @foreach (var c in unavailable)
+                {
+                    <article class="cn-finding cn-compact cn-wide">
+                        @CanaryHtml.Lamp(CanarySeverity.Unavailable)
+                        <h4>@c.Check.Title</h4>
+                        <p class="cn-say">@(string.IsNullOrEmpty(c.Missing) ? "This car does not report what the check needs." : $"This car does not report: {c.Missing}.")</p>
+                    </article>
+                }
+            </div>
+        </details>
+    }
+    @if (muted.Count > 0)
+    {
+        <details class="cn-fold hideOnPrint">
+            <summary><i class="bi bi-chevron-right"></i>Not reported at your request <small>@muted.Count @(muted.Count == 1 ? "check" : "checks")</small></summary>
+            <div class="cn-sheet">
+                @foreach (var c in muted)
+                {
+                    <article class="cn-finding cn-compact cn-wide">
+                        @CanaryHtml.Lamp(c.Status)
+                        <h4>@c.Headline</h4>
+                        <p class="cn-say">@f.Sentence(c) @if (Model.CanEdit) {<button type="button" class="btn btn-link btn-sm p-0 align-baseline" onclick="canaryMute('@c.Check.Id', false)">Report it again</button>}</p>
+                    </article>
+                }
+            </div>
+        </details>
+    }
+
+    <h3 class="cn-group">@T("Drives and raw data") <small>what the device recorded, day by day</small></h3>
+    <div class="cn-sheet cn-days">
+        @foreach (var day in week.Days)
+        {
+            bool future = day.Date > now.Date;
+            <section class="cn-day @(day.Trips.Count == 0 ? "cn-empty" : "")">
+                <header>
+                    <b>@day.Date.ToString("dddd")</b><span>@day.Date.ToString("MMM d")</span>
+                    <em>@(day.Trips.Count == 0 ? (future ? "" : "No drives") : $"{Drives(day.Trips.Count)}, {f.Distance(day.DistanceKm, 1)}, {CanaryFormat.DriveTime(day.DurationS)}")</em>
+                </header>
+                @foreach (var trip in day.Trips)
+                {
+                    var when = Model.Clock.TripTime(trip);
+                    int flagged = trip.Checks.Count(x => x.Status.IsFinding());
+                    <button type="button" class="cn-trip" onclick="canaryTrip('@trip.Id')">
+                        @CanaryHtml.Lamp(trip.Worst.IsFinding() ? trip.Worst : trip.Worst == CanarySeverity.Ok ? CanarySeverity.Ok : CanarySeverity.NoData)
+                        <span class="cn-when">@(trip.Start > 0 ? when.ToString("t") : "Time not known")<small>@(flagged > 0 ? $"{flagged} {(flagged == 1 ? "finding" : "findings")}" : trip.Worst == CanarySeverity.Ok ? "All checks passed" : "Too short to judge")</small></span>
+                        <span class="cn-num">@f.Distance(trip.DistanceKm, 1)</span>
+                        <span class="cn-num cn-opt">@CanaryFormat.DriveTime(trip.DurationS)</span>
+                        <span class="cn-num cn-opt">@f.Speed(trip.MaxSpeed)<small>top speed</small></span>
+                        <i class="bi bi-chevron-right hideOnPrint"></i>
+                    </button>
+                }
+            </section>
+        }
+    </div>
+    <p class="cn-note hideOnPrint">@Model.TripCount @(Model.TripCount == 1 ? "drive" : "drives") on file for this vehicle, @CanaryFormat.Bytes(Model.RawBytes) of raw data kept on this server@(Model.Settings.RawRetentionMonths > 0 ? $" for {Model.Settings.RawRetentionMonths} months" : "").@(Model.UndatedTrips > 0 ? $" {Model.UndatedTrips} arrived without a time of day because the device had not yet learned the time; they are filed under the day they were uploaded." : "")</p>
+}
+</div>

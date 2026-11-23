@@ -64,6 +64,7 @@
     <script src="~/js/odometerrecord.js?v=@StaticHelper.AssetVersion"></script>
     <script src="~/js/inspectionrecord.js?v=@StaticHelper.AssetVersion"></script>
     <script src="~/js/equipmentrecord.js?v=@StaticHelper.AssetVersion"></script>
+    <script src="~/js/canary.js?v=@StaticHelper.AssetVersion"></script>
     <script src="~/lib/chart-js/chart.umd.js"></script>
     <script src="~/lib/qrcode/qrcode.js"></script>
     <script src="~/lib/signalr/signalr.min.js"></script>
@@ -136,6 +137,12 @@
                 </button>
             }
         }
+        <div class="gb-rail-group">@translator.Translate(userLanguage, "Diagnostics")</div>
+        <button class="nav-link" id="canary-tab" data-bs-toggle="tab" data-bs-target="#canary-tab-pane" type="button" role="tab" aria-selected="false" data-gb-title="CANary">
+            <i class="bi bi-heart-pulse"></i>
+            <span class="gb-rail-label">CANary</span>
+            <span class="gb-rail-count d-none" id="gbCanaryCount"></span>
+        </button>
         @if (quickAdd.Any())
         {
             <div class="gb-rail-foot">
@@ -162,6 +169,7 @@
                 <div class="tab-pane fade" id="odometer-tab-pane" role="tabpanel" tabindex="0"></div>
                 <div class="tab-pane fade" id="inspection-tab-pane" role="tabpanel" tabindex="0"></div>
                 <div class="tab-pane fade" id="equipment-tab-pane" role="tabpanel" tabindex="0"></div>
+                <div class="tab-pane fade" id="canary-tab-pane" role="tabpanel" tabindex="0"></div>
             </div>
         </div>
     </div>
@@ -196,6 +204,7 @@
         {
             <button type="button" data-gb-tab="@navItem.Id"><i class="bi @navItem.Icon"></i>@translator.Translate(userLanguage, navItem.Label)</button>
         }
+        <button type="button" data-gb-tab="canary-tab"><i class="bi bi-heart-pulse"></i>CANary</button>
     </div>
     <div class="gb-sheet-list">
         <button type="button" onclick="gbCloseSheets(); editVehicle(@Model.Id)"><i class="bi bi-pencil"></i>@translator.Translate(userLanguage, "Edit vehicle")</button>
@@ -246,6 +255,16 @@
 <div class="modal fade" data-bs-focus="false" id="noteViewerModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content" id="noteViewerModalContent"></div>
+    </div>
+</div>
+<div class="modal fade" data-bs-focus="false" id="canaryTripModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable" role="document">
+        <div class="modal-content" id="canaryTripModalContent"></div>
+    </div>
+</div>
+<div class="modal fade" data-bs-focus="false" id="canarySettingsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content" id="canarySettingsModalContent"></div>
     </div>
 </div>
 <div class="stickerPrintContainer hideOnPrint">

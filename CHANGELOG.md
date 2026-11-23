@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased: CANary diagnostics (branch `CANary`)
+
+A new section for every vehicle, fed by a [CANary](https://github.com/au12/CANary) device in the car's diagnostic port.
+
+```
+ghcr.io/au12/glovebox:canary
+```
+
+- **Odometer records from the car.** Each check-in records the reading: one record a day, tagged `canary`, only ever upward.
+- **A weekly report** built by Glovebox from the raw data the device uploads: a plain-language verdict, findings ordered by severity with limit gauges, week-over-week trends and explanations, trouble codes with their meaning, and what changed since the week before.
+- **Drives and raw data.** Every drive listed by day; open one to chart any logged reading or download its log.
+- **Prints as a report,** explanations included.
+- **ntfy notifications** when a warning, a critical finding or a stored code first appears, and a short weekly summary.
+- **Settings per vehicle:** odometer unit and correction, first day of the week, how long raw data is kept, notifications, muting a check, analysing history again.
+- Data lives in `data/canary`; it works with LiteDB and PostgreSQL alike and does not touch the database schema.
+- The image workflow publishes this branch as `canary` and runs the analysis self-test first.
+
 ## 0.2.0 (2026-11-15)
 
 A rebuilt maintenance report.

@@ -1,0 +1,33 @@
+@using CarCareTracker.Helper
+@model CanaryViewModel
+@* The three values a device needs, each with a copy button. Shown before the first check-in and in the settings. *@
+<div class="cn-connect">
+    <h3>Enter these on the device</h3>
+    <p>Open the device's own page at <code>http://canary.local</code> while you are on the same network, choose Device, then Glovebox.</p>
+    <dl>
+        <dt>Glovebox address</dt>
+        <dd><code id="cnServerUrl">@Model.ServerUrl</code><button type="button" class="btn btn-outline-secondary btn-sm" onclick="canaryCopy('cnServerUrl', this)"><i class="bi bi-clipboard"></i><span class="gb-btn-label">Copy</span></button>
+            <small>The address you open Glovebox with from your home network. The car has to be able to reach it over Wi-Fi.</small></dd>
+        <dt>Vehicle number</dt>
+        <dd><code id="cnVehicleNumber">@Model.Vehicle.Id</code></dd>
+        <dt>API key</dt>
+        @if (Model.AuthEnabled)
+        {
+            <dd id="cnKeyRow">
+                @if (Model.CanEdit)
+                {
+                    <button type="button" class="btn btn-primary btn-sm" onclick="canaryCreateKey()"><i class="bi bi-key"></i><span class="gb-btn-label">Create a key for the device</span></button>
+                    <small>The key is shown once. It lets the device add odometer records and upload drives for vehicles you can edit, and nothing else.</small>
+                }
+                else
+                {
+                    <small>Ask someone who can edit this vehicle to create a key.</small>
+                }
+            </dd>
+        }
+        else
+        {
+            <dd><small>Not needed: this Glovebox has no login. Leave the field empty on the device.</small></dd>
+        }
+    </dl>
+</div>

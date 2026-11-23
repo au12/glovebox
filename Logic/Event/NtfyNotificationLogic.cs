@@ -17,6 +17,12 @@ namespace CarCareTracker.Logic
         Task WaitForRequestAsync(TimeSpan timeout, CancellationToken cancellationToken);
         Task<int> RunCheckAsync(CancellationToken cancellationToken = default);
         Task<OperationResponse> SendTestAsync(NtfyConfig config, string vehicleName);
+        /// <summary>
+        /// Sends a one-off message about a vehicle to everyone who has notifications turned on and can
+        /// see that vehicle. During a recipient's quiet hours it is delivered silently instead of dropped.
+        /// Returns how many were sent.
+        /// </summary>
+        Task<int> SendVehicleAlertAsync(Vehicle vehicle, string title, string message, int priority, List<string> tags, string tab);
     }
     /// <summary>
     /// Sends reminder notifications to ntfy. Each reminder walks through stages
@@ -499,6 +505,36 @@ namespace CarCareTracker.Logic
                 _logger.LogWarning($"ntfy: publish failed: {ex.Message}");
                 return OperationResponse.Failed($"Couldn't reach the ntfy server: {ex.Message}");
             }
+        }
+        public async Task<int> SendVehicleAlertAsync(Vehicle vehicle, string title, string message, int priority, List<string> tags, string tab)
+        {
+            int sent = 0;
+            try
+            {
+                var now = DateTime.Now;
+                foreach (var recipient in GetRecipients())
+                {
+                    if (recipient.UserId != -1 && !_userLogic.FilterUserVehicles(new List<Vehicle> { vehicle }, recipient.UserId).Any())
+                    {
+                        continue;
+                    }
+                    var clickUrl = GetClickUrl(recipient.Config, vehicle.Id);
+                    if (!string.IsNullOrWhiteSpace(clickUrl))
+                    {
+                        clickUrl = clickUrl.Replace("&tab=reminder", $"&tab={tab}");
+                    }
+                    int effectivePriority = InQuietHours(recipient.Config, now) ? Math.Min(priority, 2) : priority;
+                    if (await PublishAsync(recipient.Config, title, message, effectivePriority, tags, clickUrl))
+                    {
+                        sent++;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"ntfy: vehicle alert could not be sent: {ex.Message}");
+            }
+            return sent;
         }
         public async Task<OperationResponse> SendTestAsync(NtfyConfig config, string vehicleName)
         {
