@@ -112,6 +112,13 @@ string dir = Path.Combine(AppContext.BaseDirectory, "fixtures");
         bool nearThreshold = check.Levels.Any(l => Math.Abs(l.Value - theirs) <= tolerance);
         Check(mine.Status.Name() == theirStatus || nearThreshold, $"{id}: status {mine.Status.Name()} vs device {theirStatus}");
     }
+    // A four-cylinder has one bank and this car reports no catalyst temperature: those checks are not
+    // waiting for more driving, they cannot run on this car, and the report should say so.
+    var bank = trip.Checks.First(x => x.Id == "fuel_trim_bank_split");
+    Check(bank.Status == CanarySeverity.Unavailable && bank.Missing == "Total fuel trim, bank 2", $"a check on a reading the car never sends is unavailable ({bank.Status}, {bank.Missing})");
+    Check(trip.Checks.First(x => x.Id == "catalyst_overheat").Status == CanarySeverity.Unavailable, "catalyst temperature is not reported by this car");
+    Check(trip.Checks.Count(x => x.Status == CanarySeverity.Unavailable) == 2, "and only those two");
+
     var idle = trip.Checks.First(x => x.Id == "fuel_trim_idle");
     Check(idle.Status == CanarySeverity.Advisory && !idle.Low, "lean idle is an advisory on the high side");
     Check(profile.Checks.First(x => x.Id == "fuel_trim_idle").Headline(idle.Status, idle.Low) == "Running lean at idle", "headline follows the side");

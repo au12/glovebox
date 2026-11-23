@@ -120,6 +120,7 @@ namespace CarCareTracker.Canary
             int speedIndex = -1, fuelRateIndex = -1, rpmIndex = -1, odoIndex = -1;
             long nextTick = 500, lastTime = 0, samples = 0, bytes = 0;
             var codes = new Dictionary<string, CanaryCode>();
+            var columns = new Dictionary<string, int>();
             CanaryProfile? profile = null;
             bool started = false;
 
@@ -134,7 +135,7 @@ namespace CarCareTracker.Canary
                 stats = new SignalAccumulator?[size];
                 Array.Fill(values, double.NaN);
                 Array.Fill(sampleAt, -1);
-                var byId = new Dictionary<string, int>();
+                var byId = columns;
                 foreach (var s in header.Signals)
                 {
                     staleMs[s.Index] = s.StaleMs;
@@ -315,7 +316,9 @@ namespace CarCareTracker.Canary
             }
             if (engine != null)
             {
-                trip.Checks = engine.Finish(duration);
+                trip.Checks = engine.Finish(duration,
+                    id => columns.TryGetValue(id, out int i) && stats[i] is { N: > 0 },
+                    id => columns.TryGetValue(id, out int i) && stats[i] != null ? stats[i]!.Def.Name : id);
                 var findings = trip.Checks.Where(x => x.Status.IsFinding()).ToList();
                 trip.Worst = findings.Count > 0 ? findings.Max(x => x.Status)
                     : trip.Checks.Any(x => x.Status == CanarySeverity.Ok) ? CanarySeverity.Ok : CanarySeverity.NoData;

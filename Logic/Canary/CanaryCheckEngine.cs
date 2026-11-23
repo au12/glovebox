@@ -18,6 +18,8 @@ namespace CarCareTracker.Canary
             public CanaryExpr? When;
             public CanaryExpr? Value;
             public string? Missing;
+            /// <summary>Every signal the check's conditions and value refer to.</summary>
+            public List<string> Signals = new();
             public CanaryCheckState State = new();
             public float[] Res = new float[CanaryCheckState.Reservoir];
             public long GateRun;
@@ -44,6 +46,10 @@ namespace CarCareTracker.Canary
                     if (index < 0 && missing == null)
                     {
                         missing = name;
+                    }
+                    if (index >= 0 && !running.Signals.Contains(name))
+                    {
+                        running.Signals.Add(name);
                     }
                     return index;
                 }
@@ -164,8 +170,13 @@ namespace CarCareTracker.Canary
             }
         }
 
-        /// <summary>The verdict of every check for the drive just replayed.</summary>
-        public List<CanaryCheckResult> Finish(double tripTimeS)
+        /// <summary>
+        /// The verdict of every check for the drive just replayed. A log lists every signal of the profile,
+        /// including those the car never answers; <paramref name="reported"/> tells which ones actually
+        /// produced a reading, so a check waiting on a signal that never came says "not available"
+        /// instead of "needs more driving". <paramref name="nameOf"/> gives a signal's name for that message.
+        /// </summary>
+        public List<CanaryCheckResult> Finish(double tripTimeS, Func<string, bool>? reported = null, Func<string, string>? nameOf = null)
         {
             var results = new List<CanaryCheckResult>();
             foreach (var r in _checks)
@@ -174,6 +185,15 @@ namespace CarCareTracker.Canary
                 {
                     results.Add(new CanaryCheckResult { Id = r.Check.Id, Status = CanarySeverity.Unavailable, Missing = r.Missing });
                     continue;
+                }
+                if (reported != null && r.State.N == 0)
+                {
+                    string? silent = r.Signals.FirstOrDefault(s => !reported(s));
+                    if (silent != null)
+                    {
+                        results.Add(new CanaryCheckResult { Id = r.Check.Id, Status = CanarySeverity.Unavailable, Missing = nameOf?.Invoke(silent) ?? silent });
+                        continue;
+                    }
                 }
                 int kept = (int)Math.Min(r.State.ResSeen, CanaryCheckState.Reservoir);
                 r.State.Res = r.Res.AsSpan(0, kept).ToArray();

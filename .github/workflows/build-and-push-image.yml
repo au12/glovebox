@@ -39,7 +39,7 @@ jobs:
       # device recorded and fails the build if the server would reach different verdicts.
       - name: Set up .NET for the CANary self-test
         if: hashFiles('tools/CanarySelfTest/CanarySelfTest.csproj') != ''
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
