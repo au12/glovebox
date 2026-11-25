@@ -1,4 +1,4 @@
-using CarCareTracker.Helper;
+﻿using CarCareTracker.Helper;
 using CarCareTracker.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,13 +12,15 @@ namespace CarCareTracker.Controllers
         private readonly ILogger<FilesController> _logger;
         private readonly IWebHostEnvironment _webEnv;
         private readonly IFileHelper _fileHelper;
+        private readonly IConfigHelper _config;
         private readonly FileExtensionContentTypeProvider _mimeTypeProvider;
 
-        public FilesController(ILogger<FilesController> logger, IFileHelper fileHelper, IWebHostEnvironment webEnv)
+        public FilesController(ILogger<FilesController> logger, IFileHelper fileHelper, IConfigHelper config, IWebHostEnvironment webEnv)
         {
             _logger = logger;
             _webEnv = webEnv;
             _fileHelper = fileHelper;
+            _config = config;
             _mimeTypeProvider = new FileExtensionContentTypeProvider();
         }
 
@@ -74,8 +76,15 @@ namespace CarCareTracker.Controllers
         public IActionResult HandleMultipleFileUpload(List<IFormFile> file)
         {
             List<UploadedFiles> uploadedFiles = new List<UploadedFiles>();
+            var allowedFileExtensionsArray = StaticHelper.ParseAllowedFileExtensions(_config.GetAllowedFileUploadExtensions());
             foreach (IFormFile fileToUpload in file)
             {
+                //sanitize against list of allowed extensions
+                if (!StaticHelper.IsAllowedFileExtension(allowedFileExtensionsArray, fileToUpload.FileName))
+                {
+                    _logger.LogWarning($"User tried to upload attachment with unapproved extension {Path.GetExtension(fileToUpload.FileName)}");
+                    continue;
+                }
                 var fileName = UploadFile(fileToUpload);
                 uploadedFiles.Add(new UploadedFiles { Name = fileToUpload.FileName, Location = fileName, IsPending = true});
             }

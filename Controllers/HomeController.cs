@@ -1,4 +1,4 @@
-using CarCareTracker.External.Interfaces;
+﻿using CarCareTracker.External.Interfaces;
 using CarCareTracker.Helper;
 using CarCareTracker.Logic;
 using CarCareTracker.Models;
@@ -148,8 +148,13 @@ namespace CarCareTracker.Controllers
         }
         public IActionResult ViewCalendarReminder(int reminderId)
         {
-            var reminder = _reminderRecordDataAccess.GetReminderRecordById(reminderId);
-            var reminderUrgency = _reminderHelper.GetReminderRecordViewModels(new List<ReminderRecord> { reminder }, 0, DateTime.Now).FirstOrDefault();
+            var existingReminder = _reminderRecordDataAccess.GetReminderRecordById(reminderId);
+            //security check
+            if (!_userLogic.UserCanEditVehicle(GetUserID(), existingReminder.VehicleId, HouseholdPermission.View))
+            {
+                return Json(OperationResponse.Failed("Access Denied"));
+            }
+            var reminderUrgency = _reminderHelper.GetReminderRecordViewModels(new List<ReminderRecord> { existingReminder }, 0, DateTime.Now).FirstOrDefault();
             return PartialView("_ReminderRecordCalendarModal", reminderUrgency);
         }
         public async Task<IActionResult> Settings()
@@ -195,6 +200,10 @@ namespace CarCareTracker.Controllers
         public IActionResult SaveNotificationSettings(NtfyConfig ntfy, bool clearSecrets = false)
         {
             var existingConfig = _config.GetUserConfig(User);
+            if (!User.IsInRole(nameof(UserData.IsRootUser)))
+            {
+                ntfy.ServerUrl = _ntfyLogic.GetAdminServerUrl();
+            }
             existingConfig.Ntfy = MergeNtfySecrets(ntfy, existingConfig.Ntfy, clearSecrets);
             var result = _config.SaveUserConfig(User, existingConfig);
             if (result)
@@ -213,6 +222,10 @@ namespace CarCareTracker.Controllers
         public async Task<IActionResult> SendNtfyTest(NtfyConfig ntfy)
         {
             var existingConfig = _config.GetUserConfig(User);
+            if (!User.IsInRole(nameof(UserData.IsRootUser)))
+            {
+                ntfy.ServerUrl = _ntfyLogic.GetAdminServerUrl();
+            }
             var testConfig = MergeNtfySecrets(ntfy, existingConfig.Ntfy, false);
             var vehicles = _dataAccess.GetVehicles();
             if (!User.IsInRole(nameof(UserData.IsRootUser)))

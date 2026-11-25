@@ -1,4 +1,4 @@
-using CarCareTracker.Models;
+﻿using CarCareTracker.Models;
 using CsvHelper;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -14,11 +14,11 @@ namespace CarCareTracker.Helper
     /// </summary>
     public static class StaticHelper
     {
-        public const string VersionNumber = "1.7.4";
+        public const string VersionNumber = "1.7.5";
         /// <summary>
         /// Glovebox release version (VersionNumber remains the upstream LubeLogger version it's based on).
         /// </summary>
-        public const string GloveboxVersion = "0.2.0";
+        public const string GloveboxVersion = "0.2.1";
         private static string? _assetVersion;
         /// <summary>
         /// Glovebox: cache-busting token for static files. VersionNumber stays the upstream
@@ -62,6 +62,35 @@ namespace CarCareTracker.Helper
         public const string GenericErrorMessage = "An error occurred, please try again later";
         public const string ReminderEmailTemplate = "defaults/reminderemailtemplate.txt";
         public const string DefaultAllowedFileExtensions = ".png,.jpg,.jpeg,.pdf,.xls,.xlsx,.docx";
+        /// <summary>
+        /// Parses the configured allowed upload extensions. An empty list means any extension is allowed ("*" or blank).
+        /// </summary>
+        public static List<string> ParseAllowedFileExtensions(string configured)
+        {
+            if (string.IsNullOrWhiteSpace(configured) || configured.Trim() == "*")
+            {
+                return new List<string>();
+            }
+            return configured.Split(',')
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrEmpty(x))
+                .Select(x => x.StartsWith('.') ? x : "." + x)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        /// <summary>
+        /// Exact, case-insensitive extension match, so ".JPG" from a phone is accepted and a file
+        /// with no extension, or one like ".p" that is only part of an allowed extension, is not.
+        /// </summary>
+        public static bool IsAllowedFileExtension(List<string> allowedExtensions, string fileName)
+        {
+            if (!allowedExtensions.Any())
+            {
+                return true;
+            }
+            var extension = Path.GetExtension(fileName ?? string.Empty);
+            return !string.IsNullOrEmpty(extension) && allowedExtensions.Any(x => string.Equals(x, extension, StringComparison.OrdinalIgnoreCase));
+        }
         public const string SponsorsPath = "https://hargata.github.io/hargata/sponsors.json";
         public const string TranslationPath = "https://hargata.github.io/lubelog_translations";
         public const string ReleasePath = "https://api.github.com/repos/hargata/lubelog/releases/latest";
