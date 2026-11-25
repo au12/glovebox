@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using CarCareTracker.External.Interfaces;
 using CarCareTracker.Helper;
 using CarCareTracker.Models;
@@ -16,6 +16,11 @@ namespace CarCareTracker.Logic
         /// <summary>Waits until a check was requested or the timeout elapses.</summary>
         Task WaitForRequestAsync(TimeSpan timeout, CancellationToken cancellationToken);
         Task<int> RunCheckAsync(CancellationToken cancellationToken = default);
+        /// <summary>
+        /// The ntfy server chosen by the administrator. Other users always send through it, so a
+        /// signed-in user can't make this server send requests to an address of their choosing.
+        /// </summary>
+        string GetAdminServerUrl();
         Task<OperationResponse> SendTestAsync(NtfyConfig config, string vehicleName);
     }
     /// <summary>
@@ -108,6 +113,11 @@ namespace CarCareTracker.Logic
             public NtfyConfig Config { get; set; } = new NtfyConfig();
             public bool UseMPG { get; set; } = true;
         }
+        public string GetAdminServerUrl()
+        {
+            var serverUrl = _config.GetUserConfig(RootPrincipal)?.Ntfy?.ServerUrl;
+            return string.IsNullOrWhiteSpace(serverUrl) ? "https://ntfy.sh" : serverUrl.Trim();
+        }
         private List<Recipient> GetRecipients()
         {
             var recipients = new List<Recipient>();
@@ -119,6 +129,7 @@ namespace CarCareTracker.Logic
             }
             if (_config.GetServerAuthEnabled())
             {
+                var adminServerUrl = GetAdminServerUrl();
                 foreach (var user in _userRecordDataAccess.GetUsers())
                 {
                     try
@@ -126,7 +137,7 @@ namespace CarCareTracker.Logic
                         var userConfig = _userConfigDataAccess.GetUserConfig(user.Id);
                         if (userConfig?.UserConfig?.Ntfy != null)
                         {
-                            recipients.Add(new Recipient { Key = $"u{user.Id}", UserId = user.Id, Config = userConfig.UserConfig.Ntfy, UseMPG = userConfig.UserConfig.UseMPG });
+                            recipients.Add(new Recipient { Key = $"u{user.Id}", UserId = user.Id, Config = userConfig.UserConfig.Ntfy.WithServerUrl(adminServerUrl), UseMPG = userConfig.UserConfig.UseMPG });
                         }
                     }
                     catch (Exception ex)

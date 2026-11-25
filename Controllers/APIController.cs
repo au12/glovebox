@@ -158,13 +158,15 @@ namespace CarCareTracker.Controllers
         public async Task<IActionResult> GetServerInformation()
         {
             var currentCulture = CultureInfo.CurrentCulture;
+            var allowedFileExtensionsArray = StaticHelper.ParseAllowedFileExtensions(_config.GetAllowedFileUploadExtensions());
             var viewModel = new ServerInformation
             {
                 Locale = currentCulture.Name,
                 CurrentVersion = StaticHelper.VersionNumber,
                 CurrencySymbol = currentCulture.NumberFormat.CurrencySymbol,
                 DecimalSeparator = currentCulture.NumberFormat.NumberDecimalSeparator,
-                DateFormat = currentCulture.DateTimeFormat.ShortDatePattern
+                DateFormat = currentCulture.DateTimeFormat.ShortDatePattern,
+                AllowedAttachmentExtensions = allowedFileExtensionsArray
             };
             return Json(viewModel);
         }
@@ -449,6 +451,7 @@ namespace CarCareTracker.Controllers
                 return Json(OperationResponse.Failed(ex.Message));
             }
         }
+        [TypeFilter(typeof(APIKeyFilter), Arguments = new object[] { HouseholdPermission.Edit })]
         [HttpPost]
         [Route("/api/documents/upload")]
         public IActionResult UploadDocument(List<IFormFile> documents)
@@ -460,6 +463,16 @@ namespace CarCareTracker.Controllers
                 string uploadPath = Path.Combine(_webEnv.ContentRootPath, "data", uploadDirectory);
                 if (!Directory.Exists(uploadPath))
                     Directory.CreateDirectory(uploadPath);
+                var allowedFileExtensionsArray = StaticHelper.ParseAllowedFileExtensions(_config.GetAllowedFileUploadExtensions());
+                //check every file before writing any of them
+                foreach (IFormFile document in documents)
+                {
+                    if (!StaticHelper.IsAllowedFileExtension(allowedFileExtensionsArray, document.FileName))
+                    {
+                        Response.StatusCode = 400;
+                        return Json(OperationResponse.Failed($"User tried to upload attachment with unapproved extension {Path.GetExtension(document.FileName)}"));
+                    }
+                }
                 foreach (IFormFile document in documents)
                 {
                     string fileName = Guid.NewGuid() + Path.GetExtension(document.FileName);

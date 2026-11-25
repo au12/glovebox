@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.1 (2026-11-25)
+
+Security fixes. Now based on LubeLogger 1.7.5, which reads and writes the same data, so updating needs no migration.
+
+```
+ghcr.io/au12/glovebox:0.2.1
+```
+
+- **Access checks from LubeLogger 1.7.5:**
+  - Editing a record now checks that you can edit the vehicle it belongs to, not just the vehicle named in the request. This covers every record type, plans and plan templates.
+  - Calendar reminders only open for vehicles you can view.
+  - Bulk odometer adjustments only touch records of the vehicle being adjusted.
+  - Uploading documents through the API needs edit permission.
+- **Attachment types are enforced on upload.** Files outside the allowed list (`LUBELOGGER_ALLOWED_FILE_EXTENSIONS`, by default images, PDF, Excel and Word) are refused, in the app and through the API. Glovebox's check is stricter than upstream's: it matches the whole extension and refuses files with no extension, and it ignores letter case so photos named `.JPG` still upload.
+- **Only the admin chooses the ntfy server.** Other users send their reminder notifications through the admin's ntfy server and set only their own topic and credentials. Before, any signed-in user could make Glovebox send requests to an address of their choosing.
+- **The API's server info lists the allowed attachment types.**
+- **Updated dependencies,** including MailKit 5.
+
 ## 0.2.0 (2026-11-15)
 
 A rebuilt maintenance report.

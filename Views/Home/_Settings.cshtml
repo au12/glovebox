@@ -2,6 +2,7 @@
 @model SettingsViewModel
 @inject ITranslationHelper translator
 @inject IConfigHelper config
+@inject CarCareTracker.Logic.INtfyNotificationLogic ntfyLogic
 @{
     var userLanguage = Model.UserConfig.UserLanguage;
     var cfg = Model.UserConfig;
@@ -182,7 +183,15 @@
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="gb-field-label mt-0" for="ntfyServerUrl">@translator.Translate(userLanguage, "Server")</label>
-                                    <input type="url" class="form-control" id="ntfyServerUrl" value="@ntfy.ServerUrl" placeholder="https://ntfy.sh" autocomplete="off">
+                                    @if (isRoot)
+                                    {
+                                        <input type="url" class="form-control" id="ntfyServerUrl" value="@ntfy.ServerUrl" placeholder="https://ntfy.sh" autocomplete="off">
+                                    }
+                                    else
+                                    {
+                                        <input type="url" class="form-control" id="ntfyServerUrl" value="@ntfyLogic.GetAdminServerUrl()" readonly aria-describedby="ntfyServerHelp">
+                                        <small class="text-body-secondary" id="ntfyServerHelp">@translator.Translate(userLanguage, "Set by your administrator.")</small>
+                                    }
                                 </div>
                                 <div class="col-md-6">
                                     <label class="gb-field-label mt-0" for="ntfyTopic">@translator.Translate(userLanguage, "Topic")</label>

@@ -1,4 +1,4 @@
-namespace CarCareTracker.Models
+﻿namespace CarCareTracker.Models
 {
     /// <summary>
     /// Per-user push notification settings for ntfy (https://ntfy.sh or self-hosted).
@@ -50,5 +50,14 @@ namespace CarCareTracker.Models
         /// Public URL of this Glovebox instance, used as the click target of notifications.
         /// </summary>
         public string AppUrl { get; set; } = string.Empty;
+        /// <summary>
+        /// A copy that sends to a different server, leaving this instance (often a cached config) untouched.
+        /// </summary>
+        public NtfyConfig WithServerUrl(string serverUrl)
+        {
+            var copy = (NtfyConfig)MemberwiseClone();
+            copy.ServerUrl = serverUrl;
+            return copy;
+        }
     }
 }
