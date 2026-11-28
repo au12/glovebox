@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Throws random and mutated input at the CANary parsers: raw logs, profiles, expressions and
+       check-in codes. Any exception, hang or result that cannot be written as JSON is a bug. Run with:
+         dotnet run -c Release (project tools/CanaryFuzz), then the arguments: seconds and seed -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CarCareTracker.CanaryFuzz</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../Logic/Canary/*.cs" LinkBase="Canary" />
+    <None Include="../CanarySelfTest/fixtures/**" LinkBase="fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -77,6 +77,7 @@ namespace CarCareTracker.Logic
             device.Checkins = (previous?.Checkins ?? 0) + 1;
             device.LastOdometerRecorded = previous?.LastOdometerRecorded ?? 0;
             device.LastOdometerRecordedAt = previous?.LastOdometerRecordedAt ?? 0;
+            device.LastOdometerReadAt = previous?.LastOdometerReadAt ?? 0;
 
             var settings = _store.GetSettings(vehicleId);
             if (settings.OdometerUnit is not ("mi" or "km"))
@@ -97,6 +98,7 @@ namespace CarCareTracker.Logic
                     {
                         device.LastOdometerRecorded = value;
                         device.LastOdometerRecordedAt = now;
+                        device.LastOdometerReadAt = device.OdometerTime;
                     }
                 }
             }
@@ -122,6 +124,26 @@ namespace CarCareTracker.Logic
         /// </summary>
         private bool RecordOdometer(int vehicleId, int value, CanaryDevice device, ClaimsPrincipal user, int userId)
         {
+            /* Records only ever go up, so one misread (a wrong scaling, a garbled reply) would block every
+               real reading after it. Refuse what no car could have done: past two million, or further
+               since the last recorded reading than 300 an hour for the time between. */
+            if (value <= 0 || value > 2_000_000)
+            {
+                _logger.LogWarning($"CANary: ignored an odometer reading of {value} for vehicle {vehicleId}: not a plausible odometer");
+                return false;
+            }
+            if (device.LastOdometerRecorded > 0 && device.LastOdometerRecordedAt > 0)
+            {
+                /* the longer of the two clocks' gaps: the device's own one also covers a replayed history */
+                long gap = Math.Max(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - device.LastOdometerRecordedAt,
+                    device.OdometerTime > 0 && device.LastOdometerReadAt > 0 ? device.OdometerTime - device.LastOdometerReadAt : 0);
+                double hours = Math.Max(0, gap / 3600.0);
+                if (value - device.LastOdometerRecorded > 300 * (hours + 1))
+                {
+                    _logger.LogWarning($"CANary: ignored an odometer reading of {value} for vehicle {vehicleId}: {value - device.LastOdometerRecorded} more than the last one, {hours:0.#} hours ago");
+                    return false;
+                }
+            }
             int highest = _vehicleLogic.GetMaxMileage(vehicleId);
             if (value <= highest)
             {
@@ -157,8 +179,8 @@ namespace CarCareTracker.Logic
 
         private static CanaryDevice ReadDevice(JsonElement p)
         {
-            string Text(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? string.Empty : string.Empty;
-            double? Number(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+            string Text(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) ? CanaryJson.Str(v) ?? string.Empty : string.Empty;
+            double? Number(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && double.IsFinite(v.GetDouble()) ? v.GetDouble() : null; /* 1e999 reads as infinity, which cannot be saved */
             bool Flag(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
             var device = new CanaryDevice
             {
@@ -171,7 +193,7 @@ namespace CarCareTracker.Logic
                 OdometerTime = (long)(Number(p, "odometer_time") ?? 0),
                 BatteryV = Number(p, "battery_v"),
                 State = Text(p, "state"),
-                TzOffsetMin = (int)(Number(p, "tz_offset_min") ?? 0),
+                TzOffsetMin = (int)Math.Clamp(Number(p, "tz_offset_min") ?? 0, -900, 900), /* anything wider breaks the clock maths */
                 PendingTrips = (int)(Number(p, "pending_trips") ?? 0),
                 Worst = Text(p, "worst"),
                 Mil = Flag(p, "mil")

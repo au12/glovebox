@@ -18,11 +18,32 @@ namespace CarCareTracker.Canary
 
     public static class CanaryJson
     {
+        /// <summary>
+        /// A string from a device's JSON, or null. Text with broken UTF-8 (a name cut off in the middle
+        /// of a character, say) counts as missing instead of failing the whole request.
+        /// </summary>
+        public static string? Str(JsonElement e)
+        {
+            if (e.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+            try
+            {
+                return e.GetString();
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+        }
+
         public static readonly JsonSerializerOptions Options = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            NumberHandling = JsonNumberHandling.AllowReadingFromString,
+            /* named literals: a stray infinity in a summary must never stop it being saved */
+            NumberHandling = JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.AllowNamedFloatingPointLiterals,
             PropertyNameCaseInsensitive = true,
             Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
         };
@@ -158,6 +179,10 @@ namespace CarCareTracker.Canary
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                throw new JsonException("a profile is a JSON object");
+            }
             var profile = new CanaryProfile { Id = Str(root, "id") ?? string.Empty, Name = Str(root, "name") ?? string.Empty, Hash = hash };
             if (root.TryGetProperty("ecus", out var ecus) && ecus.ValueKind == JsonValueKind.Object)
             {
@@ -186,7 +211,7 @@ namespace CarCareTracker.Canary
                         Unit = Str(s, "unit") ?? string.Empty,
                         Group = Str(s, "group") ?? string.Empty,
                         Rate = Str(s, "rate") ?? "medium",
-                        Dec = (int)Num(s, "dec", 1)
+                        Dec = Decimals(Num(s, "dec", 1))
                     });
                 }
             }
@@ -206,7 +231,7 @@ namespace CarCareTracker.Canary
                         Category = Str(m, "category") ?? "General",
                         Unit = Str(m, "unit") ?? string.Empty,
                         Stat = Str(m, "stat") ?? "mean",
-                        Dec = (int)Num(m, "dec", 1),
+                        Dec = Decimals(Num(m, "dec", 1)),
                         MinTimeS = Num(m, "min_time_s", 10),
                         SettleS = Num(m, "settle_s", 0),
                         When = Str(m, "when") ?? string.Empty,
@@ -223,6 +248,10 @@ namespace CarCareTracker.Canary
                     {
                         foreach (var l in levels.EnumerateArray())
                         {
+                            if (l.ValueKind != JsonValueKind.Object)
+                            {
+                                continue;
+                            }
                             var severity = CanaryJson.ParseSeverity(Str(l, "severity"));
                             if (!severity.IsFinding())
                             {
@@ -230,7 +259,7 @@ namespace CarCareTracker.Canary
                             }
                             foreach (var op in new[] { "gt", "ge", "lt", "le" })
                             {
-                                if (l.TryGetProperty(op, out var threshold) && threshold.ValueKind == JsonValueKind.Number)
+                                if (l.TryGetProperty(op, out var threshold) && threshold.ValueKind == JsonValueKind.Number && double.IsFinite(threshold.GetDouble()))
                                 {
                                     check.Levels.Add(new CanaryLevel { Severity = severity, Op = op, Value = threshold.GetDouble() });
                                 }
@@ -243,19 +272,22 @@ namespace CarCareTracker.Canary
             return profile;
         }
 
+        /// <summary>Decimal places as rounding accepts them (the device stores them in a byte).</summary>
+        private static int Decimals(double value) => double.IsFinite(value) ? (int)Math.Clamp(value, 0, 6) : 1;
+
         private static CanaryCheckText Text(JsonElement e)
         {
             var text = new CanaryCheckText { Alert = Str(e, "alert"), Summary = Str(e, "summary"), Detail = Str(e, "detail") };
             if (e.TryGetProperty("causes", out var causes) && causes.ValueKind == JsonValueKind.Array)
             {
-                text.Causes.AddRange(causes.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? string.Empty));
+                text.Causes.AddRange(causes.EnumerateArray().Select(CanaryJson.Str).OfType<string>());
             }
             return text;
         }
         private static string? Str(JsonElement e, string name) =>
-            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) ? CanaryJson.Str(v) : null;
         private static double Num(JsonElement e, string name, double fallback) =>
-            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : fallback;
+            e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && double.IsFinite(v.GetDouble()) ? v.GetDouble() : fallback;
     }
 
     /// <summary>
@@ -388,6 +420,8 @@ namespace CarCareTracker.Canary
         /// <summary>Odometer value last written to the vehicle's records, in the vehicle's unit.</summary>
         public int LastOdometerRecorded { get; set; }
         public long LastOdometerRecordedAt { get; set; }
+        /// <summary>When the device read that recorded value, by the device's clock.</summary>
+        public long LastOdometerReadAt { get; set; }
     }
 
     /// <summary>A check result as the device itself evaluated it on the latest drive.</summary>

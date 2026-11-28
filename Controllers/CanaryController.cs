@@ -230,7 +230,8 @@ namespace CarCareTracker.Controllers
         [HttpGet]
         public IActionResult Report(int vehicleId, string? week = null)
         {
-            DateTime? start = DateTime.TryParseExact(week, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null;
+            DateTime? start = DateTime.TryParseExact(week, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                && parsed.Year is >= 2000 and <= 2200 ? parsed : null; /* the report steps weeks and years from here: keep clear of DateTime's ends */
             var model = Shell(vehicleId);
             model.Week = _reports.Build(vehicleId, start);
             return PartialView("_Report", model);
@@ -360,6 +361,15 @@ namespace CarCareTracker.Controllers
         public IActionResult SaveSettings(int vehicleId, bool recordOdometer, string odometerUnit, int odometerOffset, bool weekStartsSunday, int rawRetentionMonths, bool notify, bool weeklyDigest)
         {
             var settings = _store.GetSettings(vehicleId);
+            string unit = odometerUnit == "km" ? "km" : "mi";
+            if ((unit != settings.OdometerUnit || odometerOffset != settings.OdometerOffset) && _store.GetDevice(vehicleId) is { } device)
+            {
+                /* readings are now in other numbers: the next one starts fresh instead of looking like a jump */
+                device.LastOdometerRecorded = 0;
+                device.LastOdometerRecordedAt = 0;
+                device.LastOdometerReadAt = 0;
+                _store.SaveDevice(vehicleId, device);
+            }
             settings.RecordOdometer = recordOdometer;
             settings.OdometerUnit = odometerUnit == "km" ? "km" : "mi";
             settings.OdometerOffset = odometerOffset;

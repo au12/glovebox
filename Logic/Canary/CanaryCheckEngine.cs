@@ -106,9 +106,9 @@ namespace CarCareTracker.Canary
                     continue; /* still settling */
                 }
                 double v = r.Value.Eval(values);
-                if (double.IsNaN(v))
+                if (!(Math.Abs(v) <= 1e30))
                 {
-                    continue;
+                    continue; /* no value, or none a car could produce (x/0): the same rule as the device */
                 }
                 var s = r.State;
                 if (r.Check.Stat == "time_to")

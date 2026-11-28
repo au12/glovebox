@@ -13,6 +13,18 @@ namespace CarCareTracker.Canary
     /// </summary>
     public static class CanaryLog
     {
+        /// <summary>
+        /// The device writes times in order and ends a drive after a few seconds of silence, so a time
+        /// further than this past the last one is a damaged line. Taking it would stretch the drive to
+        /// years (and, worse, step through every half second in between).
+        /// </summary>
+        public const long MaxGapMs = 10 * 60 * 1000;
+
+        /// <summary>
+        /// Readings are physical quantities; anything beyond a trillion is a damaged line, and would
+        /// overflow the sums (to infinity, which cannot be stored).
+        /// </summary>
+        private static bool Plausible(double v) => double.IsFinite(v) && Math.Abs(v) <= 1e12;
         public sealed class Signal
         {
             public int Index;
@@ -218,7 +230,7 @@ namespace CarCareTracker.Canary
                     {
                         continue;
                     }
-                    if (eventTime > lastTime)
+                    if (eventTime > lastTime && eventTime <= lastTime + MaxGapMs)
                     {
                         lastTime = eventTime;
                     }
@@ -243,9 +255,9 @@ namespace CarCareTracker.Canary
                     || !long.TryParse(span[..a], NumberStyles.Integer, CultureInfo.InvariantCulture, out long t)
                     || !int.TryParse(rest[..b], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index)
                     || !double.TryParse(rest[(b + 1)..], NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
-                    || index < 0 || index >= values.Length || t < 0)
+                    || index < 0 || index >= values.Length || t < 0 || t > lastTime + MaxGapMs || !Plausible(value))
                 {
-                    continue; /* a torn line from a power cut is skipped, not fatal */
+                    continue; /* a torn or damaged line is skipped, not fatal */
                 }
                 while (nextTick <= t)
                 {
@@ -332,6 +344,10 @@ namespace CarCareTracker.Canary
             {
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                {
+                    return; /* a damaged event line */
+                }
                 if (kind == "dtc" && root.TryGetProperty("codes", out var list) && list.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var c in list.EnumerateArray())
@@ -351,7 +367,7 @@ namespace CarCareTracker.Canary
                 }
                 else if (kind == "end" && root.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String)
                 {
-                    trip.EndReason = reason.GetString();
+                    trip.EndReason = CanaryJson.Str(reason);
                 }
             }
             catch (JsonException)
@@ -364,17 +380,17 @@ namespace CarCareTracker.Canary
 
         public static CanaryCode? ReadCode(JsonElement c)
         {
-            if (c.ValueKind != JsonValueKind.Object || !c.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.String)
+            if (c.ValueKind != JsonValueKind.Object || !c.TryGetProperty("code", out var codeElement) || CanaryJson.Str(codeElement) is not string code)
             {
                 return null;
             }
-            string? Text(string name) => c.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            string? Text(string name) => c.TryGetProperty(name, out var v) ? CanaryJson.Str(v) : null;
             int Number(string name) => c.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? (int)v.GetDouble() : 0;
             /* early firmware wrote the kind as a number in log events: 1 stored, 2 pending, 3 permanent */
             string kind = Text("kind") ?? (Number("kind") switch { 2 => "pending", 3 => "permanent", _ => "stored" });
             return new CanaryCode
             {
-                Code = code.GetString() ?? string.Empty,
+                Code = code,
                 Kind = string.IsNullOrEmpty(kind) ? "stored" : kind,
                 Ecu = Text("ecu"),
                 Module = Text("module"),
@@ -472,7 +488,8 @@ namespace CarCareTracker.Canary
                 var rest = span[(a + 1)..];
                 int b = rest.IndexOf(' ');
                 if (b < 0 || !long.TryParse(span[..a], NumberStyles.Integer, CultureInfo.InvariantCulture, out long t)
-                    || !int.TryParse(rest[..b], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index))
+                    || !int.TryParse(rest[..b], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index)
+                    || t < 0 || t > lastTime + MaxGapMs)
                 {
                     continue;
                 }
@@ -481,7 +498,8 @@ namespace CarCareTracker.Canary
                     lastTime = t;
                 }
                 if (wanted.TryGetValue(index, out int which)
-                    && double.TryParse(rest[(b + 1)..], NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                    && double.TryParse(rest[(b + 1)..], NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+                    && Plausible(value))
                 {
                     raw[which].Add((t, value));
                 }
