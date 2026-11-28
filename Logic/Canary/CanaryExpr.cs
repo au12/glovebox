@@ -61,6 +61,20 @@ namespace CarCareTracker.Canary
             {
                 parser.Fail("empty expression");
             }
+            if (!parser.Failed)
+            {
+                /* the evaluator's stack holds 32, as on the device */
+                int sp = 0, deepest = 0;
+                foreach (var ins in parser.Code)
+                {
+                    sp += ins.Op is Op.Num or Op.Var ? 1 : ins.Op is Op.Neg or Op.Not or Op.Abs ? 0 : ins.Op == Op.If ? -2 : -1;
+                    deepest = Math.Max(deepest, sp);
+                }
+                if (deepest > 32)
+                {
+                    parser.Fail("expression too complex");
+                }
+            }
             error = parser.Error;
             return parser.Failed ? null : new CanaryExpr(parser.Code);
         }
@@ -147,6 +161,9 @@ namespace CarCareTracker.Canary
             public readonly List<Ins> Code = new();
             public bool Failed;
             public string Error = string.Empty;
+            /* nesting, as on the device: unbounded recursion would end the whole process on hostile input */
+            private int _depth;
+            private const int MaxDepth = 24;
 
             public Parser(string s, Func<string, int> resolve) { _s = s; _resolve = resolve; }
 
@@ -280,6 +297,24 @@ namespace CarCareTracker.Canary
             }
 
             private void ParseUnary()
+            {
+                if (++_depth > MaxDepth)
+                {
+                    Fail("expression nested too deeply");
+                    _depth--;
+                    return;
+                }
+                try
+                {
+                    ParseUnaryInner();
+                }
+                finally
+                {
+                    _depth--;
+                }
+            }
+
+            private void ParseUnaryInner()
             {
                 SkipSpace();
                 if (Cur == '-')

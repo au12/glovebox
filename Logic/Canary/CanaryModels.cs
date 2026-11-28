@@ -386,6 +386,27 @@ namespace CarCareTracker.Canary
         public bool RawDeleted { get; set; }
         public CanarySeverity Worst { get; set; } = CanarySeverity.NoData;
         public Dictionary<string, CanarySignalStats> Signals { get; set; } = new();
+
+        /// <summary>True for a copy kept in memory without the checks' accumulated data (see <see cref="Trimmed"/>).</summary>
+        [JsonIgnore]
+        public bool IsTrimmed { get; private set; }
+
+        /// <summary>
+        /// The copy kept in memory. It leaves out the per-signal figures, which are most of a drive's size and
+        /// are only shown on the drive's own page; for older drives also the checks' accumulated data, which
+        /// only a report on those weeks needs (and reads back from disk). Years of drives stay small this way.
+        /// </summary>
+        public CanaryTrip Trimmed(bool dropCheckData)
+        {
+            var copy = (CanaryTrip)MemberwiseClone();
+            copy.Signals = new();
+            if (dropCheckData)
+            {
+                copy.Checks = Checks.Select(c => new CanaryCheckResult { Id = c.Id, Status = c.Status, Value = c.Value, Low = c.Low, SeenS = c.SeenS, Missing = c.Missing }).ToList();
+                copy.IsTrimmed = true;
+            }
+            return copy;
+        }
         public List<CanaryCheckResult> Checks { get; set; } = new();
         public List<CanaryCode> Codes { get; set; } = new();
     }

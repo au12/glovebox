@@ -377,6 +377,11 @@ namespace CarCareTracker.Logic
                         continue;
                     }
                     _store.ApplyRetention(vehicleId);
+                    int leftovers = _store.CleanLeftovers(vehicleId);
+                    if (leftovers > 0)
+                    {
+                        _logger.LogInformation($"CANary: removed {leftovers} abandoned upload(s) or temporary file(s) of vehicle {vehicleId}");
+                    }
                     int redone = _store.Reanalyze(vehicleId);
                     if (redone > 0)
                     {

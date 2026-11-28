@@ -169,7 +169,7 @@ namespace CarCareTracker.Canary
             var all = _store.TripsSnapshot(vehicleId).Select(t => (Trip: t, When: clock.TripTime(t))).OrderBy(x => x.When).ToList();
             List<CanaryTrip> In(DateTime from, int days) => all.Where(x => x.When >= from && x.When < from.AddDays(days)).Select(x => x.Trip).ToList();
 
-            var trips = In(start, 7);
+            var trips = _store.WithCheckData(vehicleId, In(start, 7));
             var report = new CanaryWeek { Start = start, Current = CanaryClock.WeekStart(clock.Now, first) == start };
             if (all.Count > 0)
             {
@@ -208,7 +208,7 @@ namespace CarCareTracker.Canary
                 for (int w = TrendWeeks; w >= 1; w--)
                 {
                     var from = start.AddDays(-7 * w);
-                    history.Add((from, In(from, 7)));
+                    history.Add((from, _store.WithCheckData(vehicleId, In(from, 7))));
                 }
                 foreach (var check in report.Profile.Checks)
                 {

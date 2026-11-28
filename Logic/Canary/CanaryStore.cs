@@ -292,7 +292,7 @@ namespace CarCareTracker.Canary
             lock (list)
             {
                 list.RemoveAll(x => x.Id == trip.Id);
-                list.Add(trip);
+                list.Add(trip.Trimmed(IsOld(trip)));
                 list.Sort((a, b) => a.Start.CompareTo(b.Start));
             }
         }
@@ -313,13 +313,26 @@ namespace CarCareTracker.Canary
                         var trip = ReadJson<CanaryTrip>(file);
                         if (trip != null && ValidTripId(trip.Id))
                         {
-                            list.Add(trip);
+                            list.Add(trip.Trimmed(IsOld(trip)));
                         }
                     }
                 }
                 list.Sort((a, b) => a.Start.CompareTo(b.Start));
                 return list;
             });
+        }
+
+        /// <summary>Drives older than this keep only their verdicts in memory; reports on their weeks read the rest from disk.</summary>
+        private static bool IsOld(CanaryTrip t) => (t.Start > 0 ? t.Start : t.ReceivedAt) < DateTimeOffset.UtcNow.AddDays(-120).ToUnixTimeSeconds();
+
+        /// <summary>The given drives with everything a report needs: trimmed ones are read back from disk.</summary>
+        public List<CanaryTrip> WithCheckData(int vehicleId, List<CanaryTrip> trips)
+        {
+            if (!trips.Any(x => x.IsTrimmed))
+            {
+                return trips;
+            }
+            return trips.Select(t => t.IsTrimmed && ReadJson<CanaryTrip>(SummaryPath(vehicleId, t.Id)) is { } full && full.Id == t.Id ? full : t).ToList();
         }
 
         /// <summary>A snapshot that is safe to enumerate while uploads continue.</summary>
@@ -332,7 +345,21 @@ namespace CarCareTracker.Canary
             }
         }
 
-        public CanaryTrip? GetTrip(int vehicleId, string tripId) => ValidTripId(tripId) ? TripsSnapshot(vehicleId).FirstOrDefault(x => x.Id == tripId) : null;
+        /// <summary>One drive in full, signal figures included (read from disk: the list in memory leaves them out).</summary>
+        public CanaryTrip? GetTrip(int vehicleId, string tripId)
+        {
+            if (!ValidTripId(tripId))
+            {
+                return null;
+            }
+            var cached = TripsSnapshot(vehicleId).FirstOrDefault(x => x.Id == tripId);
+            if (cached == null)
+            {
+                return null;
+            }
+            var full = ReadJson<CanaryTrip>(SummaryPath(vehicleId, tripId));
+            return full != null && full.Id == tripId ? full : cached;
+        }
 
         public bool HasRaw(int vehicleId, string tripId) => ValidTripId(tripId) && File.Exists(RawPath(vehicleId, tripId));
 
@@ -416,9 +443,49 @@ namespace CarCareTracker.Canary
                     {
                         File.Delete(raw);
                     }
-                    trip.RawDeleted = true;
-                    SaveTrip(vehicleId, trip);
+                    /* save the full summary, not the trimmed copy kept in memory */
+                    var full = ReadJson<CanaryTrip>(SummaryPath(vehicleId, trip.Id)) ?? trip;
+                    full.RawDeleted = true;
+                    SaveTrip(vehicleId, full);
                     removed++;
+                }
+            }
+            return removed;
+        }
+
+        /// <summary>
+        /// Removes what interrupted work leaves behind: uploads the device gave up on (it removed the
+        /// drive, or was replaced) once they have not grown for 30 days, and half-written files from a
+        /// restart in the middle of a save. Returns how many files went.
+        /// </summary>
+        public int CleanLeftovers(int vehicleId)
+        {
+            int removed = 0;
+            lock (LockFor(vehicleId))
+            {
+                foreach (var dir in new[] { VehicleDir(vehicleId), TripsDir(vehicleId) })
+                {
+                    if (!Directory.Exists(dir))
+                    {
+                        continue;
+                    }
+                    foreach (var file in new DirectoryInfo(dir).EnumerateFiles())
+                    {
+                        var age = DateTime.UtcNow - file.LastWriteTimeUtc;
+                        bool stale = (file.Name.EndsWith(".cnl.part", StringComparison.Ordinal) && age > TimeSpan.FromDays(30))
+                            || (file.Name.EndsWith(".tmp", StringComparison.Ordinal) && age > TimeSpan.FromDays(1));
+                        if (stale)
+                        {
+                            try
+                            {
+                                file.Delete();
+                                removed++;
+                            }
+                            catch (IOException)
+                            {
+                            }
+                        }
+                    }
                 }
             }
             return removed;
