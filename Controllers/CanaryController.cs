@@ -98,13 +98,21 @@ namespace CarCareTracker.Controllers
                     return Refuse("check-in is not valid JSON");
                 }
                 var result = _logic.Checkin(vehicleId, doc.RootElement, User, GetUserID());
-                return Reply(new Dictionary<string, object>
+                var reply = new Dictionary<string, object>
                 {
                     ["ok"] = true,
                     ["have_profile"] = result.HaveProfile,
                     ["time"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                     ["odometer"] = new Dictionary<string, object> { ["recorded"] = result.OdometerRecorded, ["value"] = result.OdometerValue, ["unit"] = result.OdometerUnit }
-                });
+                };
+                /* A server with a real time zone (TZ set) tells the device today's offset, so the device
+                   follows daylight saving time. A server on plain UTC says nothing and the device keeps its own. */
+                var zone = TimeZoneInfo.Local;
+                if (zone.BaseUtcOffset != TimeSpan.Zero || zone.SupportsDaylightSavingTime)
+                {
+                    reply["tz_offset_min"] = (int)zone.GetUtcOffset(DateTimeOffset.UtcNow).TotalMinutes;
+                }
+                return Reply(reply);
             }
         }
 
@@ -198,6 +206,10 @@ namespace CarCareTracker.Controllers
             if (result.Trip != null)
             {
                 var trip = result.Trip;
+                if (_store.LastAnalysisError is string failed && failed.StartsWith(id + ":", StringComparison.Ordinal))
+                {
+                    _logger.LogWarning($"CANary: drive {failed} (kept without analysis)");
+                }
                 _ = Task.Run(() => _logic.TripReceivedAsync(vehicleId, trip));
             }
             return Reply(new Dictionary<string, object> { ["ok"] = true, ["received"] = result.Received, ["complete"] = result.Complete });
@@ -304,7 +316,8 @@ namespace CarCareTracker.Controllers
             }
             var format = FormatFor(vehicleId);
             var (duration, series) = CanaryLog.ReadSeries(raw, ids, points);
-            var profile = _store.ProfileFor(vehicleId, _store.GetTrip(vehicleId, tripId)?.ProfileHash);
+            var trip = _store.GetTrip(vehicleId, tripId);
+            var profile = _store.ProfileFor(vehicleId, trip == null ? null : trip.ProfileUsed.Length > 0 ? trip.ProfileUsed : trip.ProfileHash);
             return Reply(new Dictionary<string, object>
             {
                 ["ok"] = true,

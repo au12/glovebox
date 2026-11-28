@@ -272,11 +272,18 @@ namespace CarCareTracker.Canary
                 trip.ProfileUsed = ProfileFor(vehicleId, trip.ProfileHash)?.Hash ?? string.Empty;
                 return trip;
             }
-            catch (Exception ex) when (ex is IOException or InvalidDataException)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                /* Whatever is wrong with this log, the upload must still finish: a drive that throws here
+                   would otherwise be sent again from the start on every sync, forever. It is kept as a
+                   bare entry, with its raw data, and can be analysed again after a fix. */
+                LastAnalysisError = $"{tripId}: {ex.GetType().Name}: {ex.Message}";
                 return null;
             }
         }
+
+        /// <summary>The most recent drive that could not be analysed, for the log.</summary>
+        public string? LastAnalysisError { get; private set; }
 
         private void SaveTrip(int vehicleId, CanaryTrip trip)
         {
@@ -342,7 +349,7 @@ namespace CarCareTracker.Canary
             {
                 foreach (var old in TripsSnapshot(vehicleId))
                 {
-                    bool stale = all || old.V < CanaryTrip.CurrentVersion || (old.Checks.Count == 0 && ProfileFor(vehicleId, old.ProfileHash) != null);
+                    bool stale = all || old.V < CanaryTrip.CurrentVersion || (old.Checks.Count == 0 && ProfileFor(vehicleId, old.ProfileHash) is { Checks.Count: > 0 });
                     if (!stale || old.RawDeleted || !HasRaw(vehicleId, old.Id))
                     {
                         continue;
